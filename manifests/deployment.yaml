@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: tmasc/fastapi:v1
+          image: tmasc/fastapi:v2
           ports:
             - containerPort: 80
           env:
