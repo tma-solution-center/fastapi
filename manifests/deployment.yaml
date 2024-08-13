@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-stage
+  labels:
+    app: api
+    env: stage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+      env: stage
+  template:
+    metadata:
+      labels:
+        app: api
+        env: stage
+    spec:
+      containers:
+        - name: api
+          image: tmasc/fastapi:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: ENV
+              value: stage
+      imagePullSecrets:
+        - name: estsoftcommonacr1487378b-auth
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service-stage
+spec:
+  selector:
+    app: api
+    env: stage
+  ports:
+    - protocol: TCP
+      port: 8088
+      targetPort: 8083
+
