@@ -8,10 +8,6 @@ import time
 from typing import BinaryIO
 # from VaultUtil import VaultUtil
 
-# VAULT_ADDRESS='http://localhost:8200'
-# UNSEAL_KEY='cb90c15e7246fe9a535223b13fe50a1dcaa08833f5970763dae3e4bc96268003'
-# ENGINE_NAME='kv'
-# SECRET_PATH='CDP-OnPremise-Secret'
 
 # vault = VaultUtil(VAULT_ADDRESS,VAULT_KEY,UNSEAL_KEY)
 # secrets=vault.get_secret(ENGINE_NAME,SECRET_PATH)
