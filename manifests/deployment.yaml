@@ -25,8 +25,6 @@ spec:
           env:
             - name: ENV
               value: stage
-      imagePullSecrets:
-        - name: estsoftcommonacr1487378b-auth
 
 ---
 apiVersion: v1
