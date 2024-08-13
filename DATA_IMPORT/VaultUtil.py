@@ -25,9 +25,4 @@
 #             else:
 #                 raise e
         
-
-# vault=VaultUtil('http://localhost:8200',
-#           'hvs.sV8GgIzHlxpznnHhbbFhPttX',
-#           'cb90c15e7246fe9a535223b13fe50a1dcaa08833f5970763dae3e4bc96268003')
-
 # value=vault.get_secret('kvv','test','key')
