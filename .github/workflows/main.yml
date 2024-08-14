@@ -31,7 +31,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: tmasc/fastapi:v2
+          tags: tmasc/fastapi:v3
 
       # Optional: Logout from Docker Hub
       - name: Log out from Docker Hub
