@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main  # Trigger when there's a push to the main branch
+    workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build-docker-image:
@@ -48,7 +49,7 @@ jobs:
   update-deploy-repo:
     runs-on: ubuntu-latest
     needs: build-docker-image  # This job depends on the completion of the previous job
-    if: github.event_name == 'workflow_dispatch'  # Only run this job on manual trigger
+    environment: production  # Assign this job to an environment requiring approval
 
     steps:
       # Step 1: Set up Git configuration
