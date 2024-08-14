@@ -45,7 +45,7 @@ jobs:
       - name: Log out from Docker Hub
         run: docker logout
 
-  update-other-repo:
+  update-deploy-repo:
     runs-on: ubuntu-latest
     needs: build-docker-image  # This job depends on the completion of the previous job
 
@@ -57,19 +57,19 @@ jobs:
           git config --global user.email "tmasolutioncenter@gmail.com"
       
       # Step 2: Checkout the target repository to be updated
-      - name: Checkout Target Repo
+      - name: Checkout Deploy Repo
         run: |
           git clone https://$GITHUB_ACTOR:${{ secrets.PAT_TOKEN }}@github.com/tma-solution-center/deploy.git
           cd deploy
           
-      # Step 3: Update the tag in the target repo's file
-      - name: Update tag in target repo
+      # Step 3: Update the tag in the Deploy repo's file
+      - name: Update tag in Deploy repo
         run: |
           cd deploy
           sed -i '5s/.*/      tag: v-'${{ needs.build-docker-image.outputs.timestamp }}'/' charts/fastapi/values.yaml
           
-      # Step 4: Commit and push changes to the target repo
-      - name: Push code to Target Repo
+      # Step 4: Commit and push changes to the Deploy repo
+      - name: Push code to Deploy Repo
         run: |
           cd deploy
           if git diff --quiet; then
