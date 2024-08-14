@@ -24,6 +24,11 @@ jobs:
         with:
           username: tmasolutioncenter@gmail.com
           password: 12345678x@X
+          
+      # Generate a timestamp and store it in an environment variable
+      - name: Generate timestamp
+        id: timestamp
+        run: echo "TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
       # Build and push the Docker image
       - name: Build and push Docker image
@@ -31,7 +36,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: tmasc/fastapi:v4
+          tags: tmasc/fastapi:${{ env.TIMESTAMP }}
 
       # Optional: Logout from Docker Hub
       - name: Log out from Docker Hub
