@@ -66,6 +66,7 @@ jobs:
           sed -i '5s/.*/      tag: '${{ env.TIMESTAMP }}'/' charts/fastapi/values.yaml
           
       # Step 4: Commit and push changes to the target repo
+      - - name: Push code to Target Repo
         run: |
           cd deploy
           if git diff --quiet; then
