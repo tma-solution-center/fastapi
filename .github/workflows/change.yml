@@ -23,7 +23,7 @@ jobs:
           cd deploy
           
           # Make your changes here
-          sed -i '5s/.*/New content/' >> components/fastapi/values.local.yaml
+          sed -i '1s/.*/New content/' >> components/fastapi/values.local.yaml
           
           # Commit and push the changes
           git add .
