@@ -53,8 +53,8 @@ jobs:
       # Step 1: Set up Git configuration
       - name: Set up Git
         run: |
-          git config --global user.name "TMASC"
-          git config --global user.email "tmasolutioncenter@gmail.com"
+          git config --global user.name ${{ var.GITHUBUSER }}
+          git config --global user.email ${{ var.GITHUBEMAIL }}
       
       # Step 2: Checkout the target repository to be updated
       - name: Checkout Deploy Repo
