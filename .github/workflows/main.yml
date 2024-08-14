@@ -48,6 +48,7 @@ jobs:
   update-deploy-repo:
     runs-on: ubuntu-latest
     needs: build-docker-image  # This job depends on the completion of the previous job
+    if: github.event_name == 'workflow_dispatch'  # Only run this job on manual trigger
 
     steps:
       # Step 1: Set up Git configuration
