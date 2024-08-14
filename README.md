@@ -18,9 +18,7 @@ cd existing_repo
 git remote add origin https://gitlab.tma.com.vn/data-solution-center/customer-data-platform/cdp-on-premise.git
 git branch -M main
 git push -uf origin main
-git push -uf origin main
-git push -uf origin main
-git push -uf origin main
+
 ```
 
 ## Integrate with your tools
