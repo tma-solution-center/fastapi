@@ -41,36 +41,36 @@ jobs:
       # Optional: Logout from Docker Hub
       - name: Log out from Docker Hub
         run: docker logout
-update-other-repo:
-    runs-on: ubuntu-latest
-    needs: build-docker-image  # This job depends on the completion of the previous job
-
-    steps:
-      # Step 1: Set up Git configuration
-      - name: Set up Git
-        run: |
-          git config --global user.name "TMASC"
-          git config --global user.email "tmasolutioncenter@gmail.com"
-      
-      # Step 2: Checkout the target repository to be updated
-      - name: Checkout Target Repo
-        run: |
-          git clone https://$GITHUB_ACTOR:${{ secrets.PAT_TOKEN }}@github.com/tma-solution-center/deploy.git
-          cd deploy
-          
-      # Step 3: Update the tag in the target repo's file
-      - name: Update tag in target repo
-        run: |
-          cd deploy
-          sed -i '5s/.*/      tag: '${{ env.TIMESTAMP }}'/' charts/fastapi/values.yaml
-          
-      # Step 4: Commit and push changes to the target repo
-        run: |
-          cd deploy
-          if git diff --quiet; then
-            echo "No changes detected."
-          else
-            git add .
-            git commit -m "Update Docker tag to ${{ env.TIMESTAMP }} from GitHub Actions"
-            git push origin main
-          fi
+  update-other-repo:
+      runs-on: ubuntu-latest
+      needs: build-docker-image  # This job depends on the completion of the previous job
+  
+      steps:
+        # Step 1: Set up Git configuration
+        - name: Set up Git
+          run: |
+            git config --global user.name "TMASC"
+            git config --global user.email "tmasolutioncenter@gmail.com"
+        
+        # Step 2: Checkout the target repository to be updated
+        - name: Checkout Target Repo
+          run: |
+            git clone https://$GITHUB_ACTOR:${{ secrets.PAT_TOKEN }}@github.com/tma-solution-center/deploy.git
+            cd deploy
+            
+        # Step 3: Update the tag in the target repo's file
+        - name: Update tag in target repo
+          run: |
+            cd deploy
+            sed -i '5s/.*/      tag: '${{ env.TIMESTAMP }}'/' charts/fastapi/values.yaml
+            
+        # Step 4: Commit and push changes to the target repo
+          run: |
+            cd deploy
+            if git diff --quiet; then
+              echo "No changes detected."
+            else
+              git add .
+              git commit -m "Update Docker tag to ${{ env.TIMESTAMP }} from GitHub Actions"
+              git push origin main
+            fi
