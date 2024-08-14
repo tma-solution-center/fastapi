@@ -39,7 +39,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: tmasc/fastapi:${{ steps.timestamp.outputs.timestamp }}
+          tags: tmasc/fastapi:v-${{ steps.timestamp.outputs.timestamp }}
 
       # Step 6: Log out from Docker Hub (optional)
       - name: Log out from Docker Hub
