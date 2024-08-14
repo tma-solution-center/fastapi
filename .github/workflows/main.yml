@@ -1,4 +1,4 @@
-name: Build Docker Image and Update Other Repo
+name: Build Docker Image and Deploy to K8s cluster
 
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
       - name: Update tag in target repo
         run: |
           cd deploy
-          sed -i '5s/.*/      tag: '${{ env.TIMESTAMP }}'/' charts/fastapi/values.yaml
+          sed -i '5s/.*/      tag: ${{ env.TIMESTAMP }}/' charts/fastapi/values.yaml
           
       # Step 4: Commit and push changes to the target repo
       - name: Push code to Target Repo
