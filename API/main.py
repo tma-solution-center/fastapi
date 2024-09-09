@@ -1,13 +1,13 @@
 from trino.dbapi import connect
 
-from .helper import *
+from API.helper import *
 from pydantic import BaseModel
 from io import BytesIO
 from fastapi import File, UploadFile,FastAPI, Path, HTTPException, APIRouter
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 import uvicorn
-from .SqlAlchemyUtil import *
+from API.SqlAlchemyUtil import *
 from fastapi.responses import JSONResponse
 from constants import TRINO_CONNECTION_STRING
 
