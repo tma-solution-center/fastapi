@@ -56,7 +56,7 @@ def add_update_delete(request: DataModelRequest[FieldDto]):
                                            status_code=INTERNAL_SERVER_ERROR)
 
 
-@router.post('/trino/update-status/{table}', tags=["DATA_MODEL"])
+@router.put('/trino/update-status/{table}', tags=["DATA_MODEL"])
 async def update_status_column(table: str = Path(...), request: UpdateColumnStatus = None):
     try:
         username = request.username
@@ -75,7 +75,7 @@ async def update_status_column(table: str = Path(...), request: UpdateColumnStat
                                            status_code=INTERNAL_SERVER_ERROR)
 
 
-@router.post('/trino/update-status-table/{table}', tags=["DATA_MODEL"])
+@router.put('/trino/update-status-table/{table}', tags=["DATA_MODEL"])
 async def update_status_table(table: str = Path(...), user_info: UserInfo = None):
     try:
         username = user_info.username
@@ -321,6 +321,21 @@ async def download_data(request: DownloadDataDto):
 
 @router.post("/trino/download-data-for-page", tags=["DATA_MODEL"])
 async def download_data_for_page(request: List[Dict[str, str]]):
+    try:
+        byte_array_output_stream = process_download_data_for_page(request)
+        byte_array_io = io.BytesIO(byte_array_output_stream.getvalue())
+        headers = {
+            "Content-Disposition": "attachment; filename=output.csv",
+            "Content-Type": "application/octet-stream",
+        }
+        return StreamingResponse(byte_array_io, headers=headers)
+    except Exception as e:
+        return CommonUtils.handle_response(None, status=INTERNAL_SERVER_ERROR, message="Download data failed",
+                                           status_code=INTERNAL_SERVER_ERROR)
+
+
+@router.post("/trino/add-update-data-storage", tags=["DATA_MODEL"])
+async def add_update_data_storage(request: List[Dict[str, str]]):
     try:
         byte_array_output_stream = process_download_data_for_page(request)
         byte_array_io = io.BytesIO(byte_array_output_stream.getvalue())
