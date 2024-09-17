@@ -21,7 +21,7 @@ class VaultUtils:
         """
         # self.client = hvac.Client(url=VAULT_URL, token=VAULT_TOKEN)
         # Kết nối đến Vault server
-        self.client = hvac.Client(url=vault_url )
+        self.client = hvac.Client(url=vault_url)
 
         # Unseal Vault (nếu cần thiết)
         # for key in vault_unsual_key_list:
@@ -39,7 +39,8 @@ class VaultUtils:
         """
         Read secret from Vault.
 
-        :param path: Path to the secret.
+        :param mount_point: The "path" the secret engine was mounted on.
+        :param path: Specifies the path of the secret to read. This is specified as part of the URL.
         :return: Secret data.
         """
         try:
@@ -49,7 +50,7 @@ class VaultUtils:
         except Exception as e:
             raise Exception(f"Error reading secret: {e}")
 
-    def add_secret_to_vault(self, secret_path, secret_data):
+    def create_or_update_secret_to_vault(self, secret_path, secret_data):
         """
         Thêm một secret key vào HashiCorp Vault.
         :param secret_path: Đường dẫn lưu trữ secret (ví dụ: secret/myapp)
@@ -58,11 +59,13 @@ class VaultUtils:
         try:
             # Thêm secret vào Vault
             self.client.secrets.kv.v2.create_or_update_secret(
+                mount_point='secrets',
                 path=secret_path,
                 secret=secret_data
             )
 
-            print(f"Secret added at path: {secret_path}")
+            logger.info(f"Secret added at path: {secret_path}")
 
         except Exception as e:
-            print(f"Error adding secret: {e}")
+            logger.error(f"Error adding secret: {str(e)}")
+            raise e

@@ -11,7 +11,9 @@ from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 from DATA_MODEL.model import *
 from common.config.setting_logger import LOGGING
 from common.utils.MinioUtil import MinioUtil
-from constants import TRINO_CONNECTION_STRING, MINIO_BUCKET_NAME
+from common.utils.VaultUtils import VaultUtils
+from constants import TRINO_CONNECTION_STRING, MINIO_BUCKET_NAME, MINIO_SERVICE_NAME, MINIO_URL_STR, ACCESS_KEY_STR, \
+    SECRET_KEY_STR, BUCKET_NAME_STR
 from constants import DEFAULT_SCHEMA as SCHEMA
 from common.utils.CommonUtils import CommonUtils
 
@@ -22,11 +24,11 @@ TOTAL_ITEMS = "totalItems"
 TOTAL_PAGES = "totalPages"
 SEARCH_OR_FILTER = "searchOrFilter"
 START_INDEX = "startIndex"
-
+vault_utils = VaultUtils()
 
 def get_schema_info(username):
     object_name = f'{username}/schema.JSON'
-    minio_client = MinioUtil().get_instance()
+    minio_client = MinioUtil.get_instance_default()
     if not minio_client.check_file_name_exists(MINIO_BUCKET_NAME, object_name):
         return None
     schema_json = minio_client.get_object(MINIO_BUCKET_NAME, object_name)
@@ -464,7 +466,7 @@ def process_download_data(request: DownloadDataDto):
 
         dataframes = []
         bucket_name = "cdp"
-        minio_client = MinioUtil().get_instance()
+        minio_client = MinioUtil.get_instance_default()
         # get parquet file from minio
         for file_path in list_object_key:
             df = minio_client.fetch_parquet_file(bucket_name, file_path)
@@ -556,3 +558,45 @@ def convert_list_map_to_dict(maps: List[Dict[str, str]]) -> Dict[str, Any]:
         datas.append(data)
 
     return {"data": datas, "header": header}
+
+
+def check_connection_for_data_storage_info(request: DataStorageInfo):
+    minio_client = MinioUtil.get_instance(request.minio_url, request.access_key, request.secret_key)
+    try:
+        if request.type == MINIO_SERVICE_NAME:
+            is_connected, bucket_is_exists = minio_client.check_connect_and_check_bucket_exists(request.bucket_name)
+            if is_connected:
+                if bucket_is_exists:
+                    return True, True, f"Bucket '{request.bucket_name}' exists. Connection successful!"
+                return True, False, f"Bucket '{request.bucket_name}' not exists. Connection successful!"
+
+        if request.type == 's3':
+            # todo: implement check connection for s3
+            return False, False, "Failed to connect Minio"
+
+        return False, False, "Failed to connect Minio"
+    except Exception as e:
+        return False, False, f"Failed to connect Minio: {str(e)}"
+
+
+def add_update_data_storage_info(request: DataStorageInfo):
+    is_connected, bucket_is_exists, message = check_connection_for_data_storage_info(request)
+    # Add or update data storage info to Vault
+    try:
+        if is_connected and bucket_is_exists:
+            vault_data = {
+                ACCESS_KEY_STR: request.access_key,
+                SECRET_KEY_STR: request.secret_key,
+                BUCKET_NAME_STR: request.bucket_name
+            }
+
+            if request.type == MINIO_SERVICE_NAME:
+                vault_data[MINIO_URL_STR] = request.minio_url
+
+            path = f'{request.username}/{request.type}'
+            vault_utils.create_or_update_secret_to_vault(path, vault_data)
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Add or Update data storage info successfully failed: {str(e)}")
+        raise e

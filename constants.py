@@ -25,3 +25,10 @@ TRINO_DATA_TYPE_MAPPING = {
     "datetime": "TIMESTAMP",
     "bool": "BOOLEAN"
 }
+
+MINIO_URL_STR = "minio_url"
+ACCESS_KEY_STR = "access_key"
+SECRET_KEY_STR = "secret_key"
+BUCKET_NAME_STR = 'bucket_name'
+
+MINIO_SERVICE_NAME = 'minio'

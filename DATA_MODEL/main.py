@@ -14,7 +14,7 @@ logging.config.dictConfig(LOGGING)
 logger = logging.getLogger()
 
 router = APIRouter()
-minio_client = MinioUtil().get_instance()
+minio_client = MinioUtil.get_instance_default()
 
 
 @router.post('/trino/schema/', tags=["DATA_MODEL"])
@@ -334,16 +334,32 @@ async def download_data_for_page(request: List[Dict[str, str]]):
                                            status_code=INTERNAL_SERVER_ERROR)
 
 
-@router.post("/trino/add-update-data-storage", tags=["DATA_MODEL"])
-async def add_update_data_storage(request: List[Dict[str, str]]):
+@router.post("/trino/check-connection-data-storage", tags=["DATA_MODEL"])
+async def check_connection_data_storage(request: DataStorageInfo):
     try:
-        byte_array_output_stream = process_download_data_for_page(request)
-        byte_array_io = io.BytesIO(byte_array_output_stream.getvalue())
-        headers = {
-            "Content-Disposition": "attachment; filename=output.csv",
-            "Content-Type": "application/octet-stream",
-        }
-        return StreamingResponse(byte_array_io, headers=headers)
+        check_connection, check_bucket, message = check_connection_for_data_storage_info(request)
+        if not check_connection:
+            return CommonUtils.handle_response({'check_connection': check_connection, 'check_bucket': check_bucket},
+                                               status=BAD_REQUEST, message=message, status_code=BAD_REQUEST)
+        return CommonUtils.handle_response({'check_connection': check_connection, 'check_bucket': check_bucket},
+                                           status=OK, message=message, status_code=OK)
     except Exception as e:
-        return CommonUtils.handle_response(None, status=INTERNAL_SERVER_ERROR, message="Download data failed",
+        return CommonUtils.handle_response(False, status=INTERNAL_SERVER_ERROR, message="Connect data storage failed",
+                                           status_code=INTERNAL_SERVER_ERROR)
+
+
+@router.post("/trino/add-update-data-storage", tags=["DATA_MODEL"])
+async def add_update_data_storage(request: DataStorageInfo):
+    try:
+        status = add_update_data_storage_info(request)
+        if not status:
+            return CommonUtils.handle_response(False, status=BAD_REQUEST,
+                                               message="Add or Update data storage info failed",
+                                               status_code=BAD_REQUEST)
+
+        return CommonUtils.handle_response(True, status=OK,
+                                           message="Add or Update data storage info successfully", status_code=OK)
+    except Exception as e:
+        return CommonUtils.handle_response(None, status=INTERNAL_SERVER_ERROR,
+                                           message="Add or Update data storage info failed",
                                            status_code=INTERNAL_SERVER_ERROR)

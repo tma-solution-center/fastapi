@@ -451,3 +451,14 @@ class DownloadDataDto(BaseModel):
     date: Optional[DateDto] = None
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+class DataStorageInfo(BaseModel):
+    type: Literal["minio", "s3"] = None
+    access_key: str = None
+    secret_key: str = None
+    bucket_name: str = None
+    minio_url: Optional[str] = None
+    username: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)

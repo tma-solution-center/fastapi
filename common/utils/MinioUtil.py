@@ -12,15 +12,16 @@ import json
 
 from common.config.setting_logger import LOGGING
 from common.utils.VaultUtils import VaultUtils
+from constants import MINIO_URL_STR, ACCESS_KEY_STR, SECRET_KEY_STR
 
 logging.config.dictConfig(LOGGING)
 logger = logging.getLogger()
 
 vault_utils = VaultUtils()
-secret_data = vault_utils.read_secret('minio')
+secret_data = vault_utils.read_secret(path='minio')
 
-MINIO_SERVICE_NAME = 'minio'
-NAMESPACE = 'minio'
+# MINIO_SERVICE_NAME = 'minio'
+# NAMESPACE = 'minio'
 MINIO_URL = secret_data['minio_url']
 ACCESS_KEY = secret_data['access_key']
 SECRET_KEY = secret_data['secret_key']
@@ -31,16 +32,41 @@ class MinioUtil:
     __instance = None
 
     @staticmethod
-    def get_instance():
-        """ Static access method. """
-        if not MinioUtil.__instance:
-            MinioUtil.__instance = MinioUtil()
+    def get_instance_default():
+        """ Static access method to get or create the default MinioUtil instance. """
+        MinioUtil.__instance = MinioUtil(MINIO_URL, ACCESS_KEY, SECRET_KEY)
         return MinioUtil.__instance
 
-    def __init__(self):
-        self.minio_url = MINIO_URL
-        self.access_key = ACCESS_KEY
-        self.secret_key = SECRET_KEY
+    @staticmethod
+    def get_instance(minio_url: str, access_key: str, secret_key: str):
+        """ Static access method to get or create a MinioUtil instance"""
+        if not MinioUtil.__instance:
+            MinioUtil.__instance = MinioUtil(minio_url, access_key, secret_key)
+        else:
+            MinioUtil.__instance.minio_url = minio_url
+            MinioUtil.__instance.access_key = access_key
+            MinioUtil.__instance.secret_key = secret_key
+            MinioUtil.__instance.client = Minio(
+                MinioUtil.__instance.minio_url,
+                access_key=MinioUtil.__instance.access_key,
+                secret_key=MinioUtil.__instance.secret_key,
+                secure=False
+            )
+        return MinioUtil.__instance
+
+    def __init__(self, minio_url: str, access_key: str, secret_key: str):
+        # self.minio_url = MINIO_URL
+        # self.access_key = ACCESS_KEY
+        # self.secret_key = SECRET_KEY
+        # self.client = Minio(
+        #     self.minio_url,
+        #     access_key=self.access_key,
+        #     secret_key=self.secret_key,
+        #     secure=False,
+        # )
+        self.minio_url = minio_url
+        self.access_key = access_key
+        self.secret_key = secret_key
         self.client = Minio(
             self.minio_url,
             access_key=self.access_key,
@@ -152,3 +178,28 @@ class MinioUtil:
         except S3Error as err:
             print(f"Error occurred: {err}")
             return pd.DataFrame()
+
+    def check_connect_and_check_bucket_exists(self, bucket_name):
+        """
+        Checks the connection to MinIO and whether the specified bucket exists.
+        Parameters:
+        ----------
+            - bucket_name: The name of the bucket to check for existence.
+        Returns:
+        ----------
+        tuple(bool, bool)
+            - The first value indicates the result of the connection check to MinIO.
+                - `True` if the connection to MinIO is successful, `False` otherwise.
+            - The second value indicates whether the bucket exists.
+                - `True` if the bucket exists, `False` if the bucket does not exist.
+        """
+        try:
+            if self.client.bucket_exists(bucket_name):
+                logger.info(f"Bucket '{bucket_name}' exists. Connection successful!")
+                return True, True
+            else:
+                logger.info(f"Bucket '{bucket_name}' not exists. Connection successful!")
+                return True, False
+        except S3Error as e:
+            logger.error(f"Failed to connect Minio: {e}")
+            raise e
