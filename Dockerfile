@@ -3,6 +3,9 @@ FROM python:3.9-slim
 
 # Đặt biến môi trường
 ENV PYTHONUNBUFFERED=1
+ENV VAULT_TOKEN=hvs.ii1Ov7Y5r1nbRXdgni01tzYA
+ENV VAULT_URL=http://192.168.76.120:30050/
+
 
 # Tạo và sử dụng thư mục làm việc
 WORKDIR /app
