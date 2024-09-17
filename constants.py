@@ -1,6 +1,6 @@
 # Config connection constant
-# TRINO_CONNECTION_STRING = "trino://admin@trino.trino.svc.cluster.local/iceberg"
-TRINO_CONNECTION_STRING = "trino://admin@localhost:8088/iceberg"
+TRINO_CONNECTION_STRING = "trino://admin@trino.trino.svc.cluster.local/iceberg"
+# TRINO_CONNECTION_STRING = "trino://admin@localhost:8088/iceberg"
 TEMP_CATALOG = 'iceberg'
 TEMP_SCHEMA = 'temp'
 DEFAULT_CATALOG = 'iceberg'
