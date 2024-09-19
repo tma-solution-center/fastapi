@@ -4,11 +4,11 @@ vault_utils = VaultUtils()
 minio_data = vault_utils.read_secret('minio/keys')
 
 # minio constants
-ENDPOINT_URL = minio_data['endpointURL']
+ENDPOINT_URL = "minio_data['endpointURL']"
 ACCESS_KEY = minio_data['accessKey']
 SECRET_KEY = minio_data['secretKey']
-BUCKET_NAME = minio_data['bucketName']
 BUCKET_NAME_POSTGRES = minio_data['bucketNamePostgres']
+BUCKET_NAME_API_MINIO = minio_data['bucketNameApiMinio']
 
 # nifi constants
 nifi_data = vault_utils.read_secret('nifi/keys')
