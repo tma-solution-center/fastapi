@@ -7,7 +7,7 @@ from common.utils.CommonUtils import CommonUtils
 # Initialize the FastAPI router
 router = APIRouter()
 
-LOCAL_FILE_DIRECTORY = "./API/template"  # Replace with your local directory path
+LOCAL_FILE_DIRECTORY = "./DATA_CHANNEL/template"  # Replace with your local directory path
 FILENAME = "cdc-postgre.json"  # Replace with the name of the file you want to use
 
 
