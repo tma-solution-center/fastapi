@@ -14,10 +14,10 @@ FILENAME = "full-load-postgres.json"  # Replace with the name of the file you wa
 
 class FullLoadPostgreRequest(BaseModel):
     groupName: str
-    Database_Driver_Class_Name: str
-    Database_Connection_URL: str
+    Host: str
     Database_User: str
     Password: str
+    Database_name: str
     table_name: str
     Max_Rows_Per_Flow_File: int
     Output_Batch_Size: int
@@ -42,10 +42,14 @@ async def create_fullload_postgre(id: str, request: FullLoadPostgreRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
 
+        # Construct the Database Connection URL
+        Database_Connection_URL = f"jdbc:postgresql://{request.Host}/{request.Database_name}"
+        Database_Driver_Class_Name = f"org.postgresql.Driver"
+
         # Update properties in file_data
         file_data['flowContents']['controllerServices'][0]['properties'].update({
-            'Database Driver Class Name': request.Database_Driver_Class_Name,
-            'Database Connection URL': request.Database_Connection_URL,
+            'Database Driver Class Name': Database_Driver_Class_Name,
+            'Database Connection URL': Database_Connection_URL,
             'Database User': request.Database_User,
             'Password': request.Password
         })
