@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Form, HTTPException, APIRouter
-import httpx, asyncio, json,requests
+from fastapi import FastAPI, HTTPException, APIRouter
+import httpx, asyncio, json, requests
 import random  # Import the random module
 import uuid  # Import the uuid module
-
+from pydantic import BaseModel
 from common.utils import APIUtils
 from common.utils.CommonUtils import CommonUtils
 
@@ -12,118 +12,111 @@ router = APIRouter()
 LOCAL_FILE_DIRECTORY = "./DATA_CHANNEL/template"  # Replace with your local directory path
 FILENAME = "full-load-postgres.json"  # Replace with the name of the file you want to use
 
+class FullLoadPostgreRequest(BaseModel):
+    id: str
+    groupName: str
+    Database_Driver_Class_Name: str
+    Database_Connection_URL: str
+    Database_User: str
+    Password: str
+    table_name: str
+    Max_Rows_Per_Flow_File: int
+    Output_Batch_Size: int
 
 @router.post("/create-fullload-postgre/{id}", tags=["DATA_CHANNEL_FULL_LOAD_POSTGRES"])
-async def create_fullload_postgre(
-    id: str,
-    groupName: str = Form(...),
-    Database_Driver_Class_Name: str = Form(...),
-    Database_Connection_URL: str = Form(...),
-    Database_User: str = Form(...),
-    Password: str = Form(...),
-    table_name: str = Form(...),
-    Max_Rows_Per_Flow_File: int = Form(...),
-    Output_Batch_Size: int = Form(...)
-):
+async def create_fullload_postgre(id: str, request: FullLoadPostgreRequest):
     try:
-        # Generate random positions for X and Y between 0 and 500
+        # Generate random positions for X and Y
         positionX = random.uniform(0, 500)
         positionY = random.uniform(0, 500)
 
         # Generate a random UUID for clientId
         clientId = str(uuid.uuid4())
 
-        # File handling: constructing the file name and path
-        # file_name = f"{source_name}.json"
+        # File handling
         file_path = f"{LOCAL_FILE_DIRECTORY}/{FILENAME}"
 
-        # Read file data from the local directory
-        with open(file_path, "rb") as file:
-            file_data = file.read().decode("utf-8")  # Decode bytes to string
-            file_data = json.loads(file_data)  # Parse the string as JSON
+        # Read file data
+        try:
+            with open(file_path, "rb") as file:
+                file_data = json.load(file)  # Directly load as JSON
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
 
-        # Update the properties in file_data
+        # Update properties in file_data
         file_data['flowContents']['controllerServices'][0]['properties'].update({
-            'Database Driver Class Name': Database_Driver_Class_Name,
-            'Database Connection URL': Database_Connection_URL,
-            'Database User': Database_User,
-            'Password': Password
+            'Database Driver Class Name': request.Database_Driver_Class_Name,
+            'Database Connection URL': request.Database_Connection_URL,
+            'Database User': request.Database_User,
+            'Password': request.Password
         })
 
         file_data['flowContents']['processors'][0]['properties'].update({
-            'Table Name': table_name,
-            'qdbt-max-rows': Max_Rows_Per_Flow_File,
-            'qdbt-output-batch-size': Output_Batch_Size
+            'Table Name': request.table_name,
+            'qdbt-max-rows': request.Max_Rows_Per_Flow_File,
+            'qdbt-output-batch-size': request.Output_Batch_Size
         })
 
-        # Update the properties in file_data for minio      
+        # Update properties for MinIO
         file_data['flowContents']['processors'][2]['properties'].update({
             'Endpoint Override URL': APIUtils.ENDPOINT_URL,
             'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{table_name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.table_name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
-
-        # Convert file_data back to JSON string before sending it in the request
-        file_data = json.dumps(file_data)
 
         # Prepare the NiFi API upload URL
         token = await CommonUtils.get_nifi_token()
         upload_url = f"{APIUtils.NIFI_URL}/process-groups/{id}/process-groups/upload"
 
-        # Make an asynchronous POST request to NiFi to upload the file
+        # Make an asynchronous POST request to NiFi
         async with httpx.AsyncClient(verify=False) as client:
             upload_response = await client.post(
                 upload_url,
                 headers={"Authorization": f"Bearer {token}"},
-                files={"file": (FILENAME, file_data, "application/json")},
+                files={"file": (FILENAME, json.dumps(file_data), "application/json")},
                 data={
-                    "groupName": groupName,
-                    "positionX": positionX,  # Use the randomly generated X position
-                    "positionY": positionY,  # Use the randomly generated Y position
-                    "clientId": clientId,  # Use the randomly generated UUID
+                    "groupName": request.groupName,
+                    "positionX": positionX,
+                    "positionY": positionY,
+                    "clientId": clientId,
                     "disconnectedNodeAcknowledged": "True"
                 }
             )
 
-        # Extract the Database Connection Pooling Service ID if it exists
-        id_Database_Connection_Pooling_Service = None  # Initialize with None
-        for i in range(0, 10):
-            processors = upload_response.json().get('component', {}).get('contents', {}).get('processors', [])
-            if i < len(processors) and "Database Connection Pooling Service" in processors[i].get('config', {}).get('properties', {}):
-                id_Database_Connection_Pooling_Service = processors[i]['config']['properties']["Database Connection Pooling Service"]
-                break
-        
-        # Extract processors details
+        # Handle the upload response
+        upload_response.raise_for_status()  # Raise an error for bad responses
         processors = upload_response.json().get('component', {}).get('contents', {}).get('processors', [])
 
-        processors_info = []
-        for i, processor in enumerate(processors):
-            processor_id = processor.get('id')
-            processor_name = processor.get('name')
-            processors_info.append({
-                f"id_processor_{i+1}": processor_id,
-                f"name_processor_{i+1}": processor_name
-            })
+        # Extract Database Connection Pooling Service ID
+        id_Database_Connection_Pooling_Service = next(
+            (proc['config']['properties'].get("Database Connection Pooling Service") for proc in processors if
+             "Database Connection Pooling Service" in proc.get('config', {}).get('properties', {})),
+            None
+        )
 
-        # Return the relevant details including clientId and positions
+        # Collect processor details
+        processors_info = [
+            {"id_processor": proc.get('id'), "name_processor": proc.get('name')}
+            for proc in processors
+        ]
+
+        # Return relevant details
         return {
             "status_code": upload_response.status_code,
-            "clientId": clientId,  # Return the randomly generated clientId
+            "clientId": clientId,
             "version_processor_group": upload_response.json().get('revision', {}).get('version'),
             "id_processor_group": upload_response.json().get('id'),
-            "positionX": positionX,  # Return the randomly generated X position
-            "positionY": positionY,  # Return the randomly generated Y position
+            "positionX": positionX,
+            "positionY": positionY,
             "id_Database_Connection_Pooling_Service": id_Database_Connection_Pooling_Service,
             "processors_info": processors_info
         }
+
     except httpx.HTTPStatusError as e:
-        # Handle HTTP errors from NiFi API
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
     except httpx.RequestError as e:
-        # Handle general request errors
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
     except Exception as e:
-        # Handle any other unforeseen errors
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
