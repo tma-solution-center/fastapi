@@ -13,12 +13,12 @@ LOCAL_FILE_DIRECTORY = "./DATA_CHANNEL/template"  # Replace with your local dire
 FILENAME = "full-load-postgres.json"  # Replace with the name of the file you want to use
 
 class FullLoadPostgreRequest(BaseModel):
-    groupName: str
+    Group_Name: str
     Host: str
     Database_User: str
     Password: str
-    Database_name: str
-    table_name: str
+    Database_Name: str
+    Table_Name: str
     Max_Rows_Per_Flow_File: int
     Output_Batch_Size: int
 
@@ -43,7 +43,7 @@ async def create_fullload_postgre(id: str, request: FullLoadPostgreRequest):
             raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
 
         # Construct the Database Connection URL
-        Database_Connection_URL = f"jdbc:postgresql://{request.Host}/{request.Database_name}"
+        Database_Connection_URL = f"jdbc:postgresql://{request.Host}/{request.Database_Name}"
         Database_Driver_Class_Name = f"org.postgresql.Driver"
 
         # Update properties in file_data
@@ -55,7 +55,7 @@ async def create_fullload_postgre(id: str, request: FullLoadPostgreRequest):
         })
 
         file_data['flowContents']['processors'][0]['properties'].update({
-            'Table Name': request.table_name,
+            'Table Name': request.Table_Name,
             'qdbt-max-rows': request.Max_Rows_Per_Flow_File,
             'qdbt-output-batch-size': request.Output_Batch_Size
         })
@@ -66,7 +66,7 @@ async def create_fullload_postgre(id: str, request: FullLoadPostgreRequest):
             'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{request.table_name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Prepare the NiFi API upload URL
@@ -80,7 +80,7 @@ async def create_fullload_postgre(id: str, request: FullLoadPostgreRequest):
                 headers={"Authorization": f"Bearer {token}"},
                 files={"file": (FILENAME, json.dumps(file_data), "application/json")},
                 data={
-                    "groupName": request.groupName,
+                    "groupName": request.Group_Name,
                     "positionX": positionX,
                     "positionY": positionY,
                     "clientId": clientId,

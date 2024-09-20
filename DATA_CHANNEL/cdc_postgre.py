@@ -1,6 +1,6 @@
 from fastapi import Form, HTTPException, APIRouter
 import httpx, json, random, uuid
-
+from pydantic import BaseModel
 from common.utils import APIUtils
 from common.utils.CommonUtils import CommonUtils
 
@@ -10,20 +10,19 @@ router = APIRouter()
 LOCAL_FILE_DIRECTORY = "./DATA_CHANNEL/template"  # Replace with your local directory path
 FILENAME = "cdc-postgre.json"  # Replace with the name of the file you want to use
 
+class CDCPostgreRequest(BaseModel):
+    Group_Name: str
+    Host: str
+    Database_User: str
+    Password: str
+    Database_Name: str
+    Table_Name: str
+    Col_Name: str
+    Max_Rows_Per_Flow_File: int
+    Output_Batch_Size: int
 
 @router.post("/create-cdc-postgre/{id}", tags=["DATA_CHANNEL_CDC_POSTGRES"])
-async def create_cdc_postgre(
-    id: str,
-    groupName: str = Form(...),
-    Database_Driver_Class_Name: str = Form(...),
-    Database_Connection_URL: str = Form(...),
-    Database_User: str = Form(...),
-    Password: str = Form(...),
-    table_name: str = Form(...),
-    col_name: str = Form(...),
-    Max_Rows_Per_Flow_File: int = Form(...),
-    Output_Batch_Size: int = Form(...)
-):
+async def create_cdc_postgre(id: str, request: CDCPostgreRequest):
     try:
         # Generate random positions for X and Y between 0 and 500
         positionX = random.uniform(0, 500)
@@ -40,20 +39,23 @@ async def create_cdc_postgre(
         with open(file_path, "rb") as file:
             file_data = file.read().decode("utf-8")  # Decode bytes to string
             file_data = json.loads(file_data)  # Parse the string as JSON
+        # Construct the Database Connection URL
+        Database_Connection_URL = f"jdbc:postgresql://{request.Host}/{request.Database_Name}"
+        Database_Driver_Class_Name = f"org.postgresql.Driver"
 
         # Update the properties in file_data
         file_data['flowContents']['controllerServices'][0]['properties'].update({
             'Database Driver Class Name': Database_Driver_Class_Name,
             'Database Connection URL': Database_Connection_URL,
-            'Database User': Database_User,
-            'Password': Password
+            'Database User': request.Database_User,
+            'Password': request.Password
         })
                 
         file_data['flowContents']['processors'][0]['properties'].update({
-            'Table Name': table_name,
-            'Maximum-value Columns': col_name,
-            'qdbt-max-rows': Max_Rows_Per_Flow_File,
-            'qdbt-output-batch-size': Output_Batch_Size
+            'Table Name': request.Table_Name,
+            'Maximum-value Columns': request.Col_Name,
+            'qdbt-max-rows': request.Max_Rows_Per_Flow_File,
+            'qdbt-output-batch-size': request.Output_Batch_Size
         })
 
         # Update the properties in file_data for minio      
@@ -62,7 +64,7 @@ async def create_cdc_postgre(
             'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{table_name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Convert file_data back to JSON string before sending it in the request
@@ -79,7 +81,7 @@ async def create_cdc_postgre(
                 headers={"Authorization": f"Bearer {token}"},
                 files={"file": (FILENAME, file_data, "application/json")},
                 data={
-                    "groupName": groupName,
+                    "groupName": request.Group_Name,
                     "positionX": positionX,  # Use the randomly generated X position
                     "positionY": positionY,  # Use the randomly generated Y position
                     "clientId": clientId,  # Use the randomly generated UUID
