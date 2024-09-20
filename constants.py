@@ -32,3 +32,5 @@ SECRET_KEY_STR = "secret_key"
 BUCKET_NAME_STR = 'bucket_name'
 
 MINIO_SERVICE_NAME = 'minio'
+
+HTTP_URL = 'http://192.168.76.120:30237'

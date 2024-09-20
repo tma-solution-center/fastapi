@@ -61,7 +61,8 @@ async def create_fullload_postgre(
             'Endpoint Override URL': APIUtils.ENDPOINT_URL,
             'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
             'Access Key': APIUtils.ACCESS_KEY,
-            'Secret Key': APIUtils.SECRET_KEY
+            'Secret Key': APIUtils.SECRET_KEY,
+            'Object Key': f"{table_name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Convert file_data back to JSON string before sending it in the request
