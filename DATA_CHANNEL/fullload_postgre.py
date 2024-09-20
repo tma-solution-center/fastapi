@@ -13,7 +13,6 @@ LOCAL_FILE_DIRECTORY = "./DATA_CHANNEL/template"  # Replace with your local dire
 FILENAME = "full-load-postgres.json"  # Replace with the name of the file you want to use
 
 class FullLoadPostgreRequest(BaseModel):
-    id: str
     groupName: str
     Database_Driver_Class_Name: str
     Database_Connection_URL: str
