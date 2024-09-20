@@ -1,18 +1,25 @@
 from fastapi import Form, HTTPException, APIRouter
 import httpx, asyncio, json, random, uuid
-
+from pydantic import BaseModel
 from common.utils import APIUtils
 from common.utils.CommonUtils import CommonUtils
 
 # Initialize the FastAPI router
 router = APIRouter()
 
+# Define the request model for JSON input
+class CreateProcessorGroupRequest(BaseModel):
+    Group_Name: str
+    Username: str
 
 # Asynchronous function to create a processor group in NiFi
-async def create_processor_group(id: str, groupName: str):
+async def create_processor_group(request: CreateProcessorGroupRequest):
     token = await CommonUtils.get_nifi_token()  # Lấy token từ NiFi
     if not token:
         raise HTTPException(status_code=401, detail="Failed to get NiFi token")
+
+    # Retrieve the NiFi root id
+    id = APIUtils.IDROOT
 
     async with httpx.AsyncClient(verify=False) as client:
         url = f"{APIUtils.NIFI_URL}/process-groups/{id}/process-groups"  # Construct the NiFi API URL
@@ -26,7 +33,7 @@ async def create_processor_group(id: str, groupName: str):
 
         payload = {
             "component": {
-                "name": groupName,  # Set the name of the processor group
+                "name": request.Group_Name,  # Set the name of the processor group from the request
                 "position": {
                     "x": positionX,  # Set the random X position
                     "y": positionY  # Set the random Y position
@@ -42,34 +49,31 @@ async def create_processor_group(id: str, groupName: str):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}"  # Add the token to the headers
         }
-        response = await client.post(url, json=payload, headers=headers)  # Make the POST request to NiFi
 
-        if response.status_code == 201:  # Check if the response status is 'Created'
+        # Make the POST request to NiFi
+        response = await client.post(url, json=payload, headers=headers)
+
+        # Check if the response status is 'Created'
+        if response.status_code == 201:
             return {
-                "clientId": (response.json())['revision']['clientId'],  # Return the client ID
-                "version_processor_group": (response.json())['revision']['version'],
-                # Return the version of the processor group
-                "id_new_processor_group": (response.json())['id'],  # Return the ID of the processor group
-                "positionX": positionX,  # Return the randomly generated X position
-                "positionY": positionY  # Return the randomly generated Y position
+                "Client id": (response.json())['revision']['clientId'],  # Return the client ID
+                "Version processor group": (response.json())['revision']['version'],  # Return the version
+                "Id new processor_group": (response.json())['id'],  # Return the ID of the processor group
+                "Position X": positionX,  # Return the randomly generated X position
+                "PositionY": positionY, # Return the randomly generated Y position
+                "Group name": request.Group_Name,
+                "Username": request.Username
             }
         else:
             raise HTTPException(status_code=response.status_code,
                                 detail=response.text)  # Raise an HTTP exception if the request fails
 
-
 # FastAPI endpoint to create a processor group
 @router.post("/create_processor_group/", tags=["DATA_CHANNEL"])
-async def create_processor_group_endpoint(
-    id: str,
-    groupName: str = Form(...),
-):
+async def create_processor_group_endpoint(request: CreateProcessorGroupRequest):
     # Call the function to create a processor group and return the result
-    result = await create_processor_group(
-        id, groupName
-    )
+    result = await create_processor_group(request)
     return result
-
 
 @router.post("/start-job/{id}", tags=["DATA_CHANNEL"])
 async def start_job(id: str):

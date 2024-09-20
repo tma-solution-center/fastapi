@@ -55,7 +55,8 @@ class CommonUtils:
                     APIUtils.NIFI_URL + "/access/token",
                     data={
                         "username": APIUtils.USERNAME,
-                        "password": APIUtils.PASSWORD
+                        "password": APIUtils.PASSWORD,
+                        "idroot": APIUtils.IDROOT
                     }
                 )
                 response.raise_for_status()

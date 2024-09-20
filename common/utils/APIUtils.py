@@ -15,4 +15,5 @@ nifi_data = vault_utils.read_secret('nifi/keys')
 USERNAME = nifi_data['username']
 PASSWORD = nifi_data['password']
 NIFI_URL = nifi_data['nifiUrl']
+IDROOT = nifi_data['idroot']
 
