@@ -1,8 +1,10 @@
-from fastapi import Form, HTTPException, APIRouter
-import httpx, asyncio, json, random, uuid
+from fastapi import HTTPException, APIRouter
+import httpx, asyncio, random, uuid
 from pydantic import BaseModel
-from starlette.routing import Route
+import mysql.connector
+from mysql.connector import Error
 
+from DATA_CHANNEL.model import ConnectionDetails
 from common.utils import APIUtils
 from common.utils.CommonUtils import CommonUtils
 from typing import Optional
@@ -15,6 +17,28 @@ class ProcessorGroupRequest(BaseModel):
     Group_Name: Optional[str] = None
     Username: Optional[str] = None
     id: Optional[str] = None
+
+
+@router.post("/test_connection/")
+def test_mysql_connection(details: ConnectionDetails):
+    connection = None
+    try:
+        connection = mysql.connector.connect(
+            host=details.Host,
+            port=details.Port,
+            database=details.Database_Name,
+            user=details.Database_User,
+            password=details.Password
+        )
+        if connection.is_connected():
+            return {"status": 200, "result": True}
+    except Error as e:
+        raise HTTPException(status_code=500, detail=f"Connection failed: {e}")
+    finally:
+        if connection and connection.is_connected():
+            connection.close()
+
+
 
 # Asynchronous function to create a processor group in NiFi
 async def create_processor_group(request: ProcessorGroupRequest):
