@@ -26,6 +26,7 @@ SEARCH_OR_FILTER = "searchOrFilter"
 START_INDEX = "startIndex"
 vault_utils = VaultUtils()
 
+
 def get_schema_info(username):
     object_name = f'{username}/schema.JSON'
     minio_client = MinioUtil.get_instance_default()
