@@ -10,6 +10,8 @@ ENV VAULT_URL=http://192.168.76.120:30050/
 # Tạo và sử dụng thư mục làm việc
 WORKDIR /app
 
+sudo apt-get install pkg-config python3-dev default-libmysqlclient-dev build-essential
+
 # Sao chép tệp requirements.txt vào image
 COPY requirements.txt .
 
