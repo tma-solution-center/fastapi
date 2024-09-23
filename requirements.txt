@@ -20,7 +20,6 @@ mysql==0.0.3
 mysql-connector-python==9.0.0
 numpy==2.0.2
 pandas==2.2.2
-psycopg2==2.9.9
 pyarrow==17.0.0
 pycparser==2.22
 pycryptodome==3.20.0
