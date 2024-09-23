@@ -1,19 +1,23 @@
 from fastapi import Form, HTTPException, APIRouter
 import httpx, asyncio, json, random, uuid
 from pydantic import BaseModel
+from starlette.routing import Route
+
 from common.utils import APIUtils
 from common.utils.CommonUtils import CommonUtils
+from typing import Optional
 
 # Initialize the FastAPI router
 router = APIRouter()
 
 # Define the request model for JSON input
-class CreateProcessorGroupRequest(BaseModel):
-    Group_Name: str
-    Username: str
+class ProcessorGroupRequest(BaseModel):
+    Group_Name: Optional[str] = None
+    Username: Optional[str] = None
+    id: Optional[str] = None
 
 # Asynchronous function to create a processor group in NiFi
-async def create_processor_group(request: CreateProcessorGroupRequest):
+async def create_processor_group(request: ProcessorGroupRequest):
     token = await CommonUtils.get_nifi_token()  # Lấy token từ NiFi
     if not token:
         raise HTTPException(status_code=401, detail="Failed to get NiFi token")
@@ -70,19 +74,19 @@ async def create_processor_group(request: CreateProcessorGroupRequest):
 
 # FastAPI endpoint to create a processor group
 @router.post("/create_processor_group/", tags=["DATA_CHANNEL"])
-async def create_processor_group_endpoint(request: CreateProcessorGroupRequest):
+async def create_processor_group_endpoint(request: ProcessorGroupRequest):
     # Call the function to create a processor group and return the result
     result = await create_processor_group(request)
     return result
 
 @router.post("/start-job/{id}", tags=["DATA_CHANNEL"])
-async def start_job(id: str):
+async def start_job(request: ProcessorGroupRequest):
     token = await CommonUtils.get_nifi_token()
     # Construct the URL for the NiFi API endpoint to start the process group
-    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{id}"
+    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{request.id}"
 
     # Payload to set the state of the process group to 'RUNNING'
-    payload = {"id": id, "state": "RUNNING"}
+    payload = {"id": request.id, "state": "RUNNING"}
 
     # Make an asynchronous PUT request to NiFi to start the process group
     async with httpx.AsyncClient(verify=False) as client:
@@ -99,15 +103,14 @@ async def start_job(id: str):
         "response": status_response.json()  # JSON response from NiFi
     }
 
-
 @router.post("/stop-job/{id}", tags=["DATA_CHANNEL"])
-async def stop_job(id: str):
+async def stop_job(request: ProcessorGroupRequest):
     token = await CommonUtils.get_nifi_token()
     # Construct the URL for the NiFi API endpoint to stop the process group
-    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{id}"
+    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{request.id}"
 
     # Payload to set the state of the process group to 'STOPPED'
-    payload = {"id": id, "state": "STOPPED"}
+    payload = {"id": request.id, "state": "STOPPED"}
 
     # Make an asynchronous PUT request to NiFi to stop the process group
     async with httpx.AsyncClient(verify=False) as client:
@@ -126,20 +129,20 @@ async def stop_job(id: str):
 
 
 @router.put("/enable-dbcp-connection-pool/{id}", tags=["DATA_CHANNEL"])
-async def enable_dbcp_connection_pool(id: str):
+async def enable_dbcp_connection_pool(request: ProcessorGroupRequest):
     # Get the token
     token = await CommonUtils.get_nifi_token()
 
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}  # Add the token to the headers
         # Fetch the current state and revision of the DBCPConnectionPool
-        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{id}", headers=headers)
+        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{request.id}", headers=headers)
         if service_response.status_code != 200:
             return {"status_code": service_response.status_code, "error": service_response.text}
 
         # Enable the DBCPConnectionPool using the retrieved revision
         payload = {"revision": service_response.json()['revision'], "state": "ENABLED"}
-        enable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{id}/run-status", json=payload,
+        enable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{request.id}/run-status", json=payload,
                                            headers=headers)
 
         if enable_response.status_code == 200:
@@ -159,19 +162,19 @@ async def enable_dbcp_connection_pool(id: str):
 
 
 @router.put("/disable-dbcp-connection-pool/{id}", tags=["DATA_CHANNEL"])
-async def disable_dbcp_connection_pool(id: str):
+async def disable_dbcp_connection_pool(request: ProcessorGroupRequest):
     # Get the token
     token = await CommonUtils.get_nifi_token()
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}  # Add the token to the headers
         # Fetch the current state and revision of the DBCPConnectionPool
-        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{id}", headers=headers)
+        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{request.id}", headers=headers)
         if service_response.status_code != 200:
             return {"status_code": service_response.status_code, "error": service_response.text}
 
         # Disable the DBCPConnectionPool using the retrieved revision
         payload = {"revision": service_response.json()['revision'], "state": "DISABLED"}
-        disable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{id}/run-status", json=payload,
+        disable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{request.id}/run-status", json=payload,
                                             headers=headers)
 
         if disable_response.status_code == 200:
@@ -191,11 +194,11 @@ async def disable_dbcp_connection_pool(id: str):
 
 
 @router.post("/process-groups/{id}/empty-all-connections-requests", tags=["DATA_CHANNEL"])
-async def create_empty_all_connections_request(id: str):
+async def create_empty_all_connections_request(request: ProcessorGroupRequest):
     token = await CommonUtils.get_nifi_token()
 
     # Construct the URL to create a request to empty all connections for the specified process group
-    url = f"{APIUtils.NIFI_URL}/process-groups/{id}/empty-all-connections-requests"
+    url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}/empty-all-connections-requests"
 
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}
@@ -209,7 +212,7 @@ async def create_empty_all_connections_request(id: str):
             drop_request_id = response_json['dropRequest']['id']
 
             # Construct the URL to check the status of the empty connections request
-            status_url = f"{APIUtils.NIFI_URL}/process-groups/{id}/empty-all-connections-requests/{drop_request_id}"
+            status_url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}/empty-all-connections-requests/{drop_request_id}"
 
             while True:
                 # Poll the status URL to check if the empty connections request has been completed
@@ -232,14 +235,14 @@ async def create_empty_all_connections_request(id: str):
 
 
 @router.delete("/delete-process-group/{id}", tags=["DATA_CHANNEL"])
-async def delete_process_group(id: str):
+async def delete_process_group(request: ProcessorGroupRequest):
     token = await CommonUtils.get_nifi_token()
 
     # Generate a random UUID for clientId
     clientId = str(uuid.uuid4())
 
     # Construct the request URL to get the process group details
-    get_url = f"{APIUtils.NIFI_URL}/process-groups/{id}"
+    get_url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}"
 
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}
@@ -256,7 +259,7 @@ async def delete_process_group(id: str):
             )
 
         # Construct the DELETE request URL
-        delete_url = f"{APIUtils.NIFI_URL}/process-groups/{id}"
+        delete_url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}"
 
         # Set up query parameters for DELETE request
         params = {
@@ -276,3 +279,54 @@ async def delete_process_group(id: str):
                 status_code=delete_response.status_code,
                 detail=f"Failed to delete process group: {delete_response.text}"
             )
+
+# Function to get processors by name
+async def check_processor_by_name(request: ProcessorGroupRequest):
+    try:
+        # Ensure token is available
+        token = await CommonUtils.get_nifi_token()  # Lấy token từ NiFi
+        if not token:
+            raise HTTPException(status_code=401, detail="Failed to get NiFi token")
+
+        headers = {
+            "Authorization": f"Bearer {token}"
+        }
+
+        process_group_id = request.id if request.id and request.id != "root" else APIUtils.IDROOT
+
+        async with httpx.AsyncClient(verify=False) as client:
+            # Get the root process group details
+            response = await client.get(f"{APIUtils.NIFI_URL}/flow/process-groups/{process_group_id}", headers=headers)
+            response.raise_for_status()
+            root_process_group_flow = response.json()
+
+            # Extract process groups
+            process_groups = root_process_group_flow.get('processGroupFlow', {}).get('flow', {}).get('processGroups',
+                                                                                                     [])
+            # Find processor by name
+            # Check if the group exists by name
+            for process_group in process_groups:
+                if process_group['component']['name'] == request.Group_Name:
+                    return {"exists": True, "id": process_group['component']['id']}
+
+            # Return false if not found
+            return {"exists": False}
+
+    except httpx.HTTPStatusError as e:
+        print(f"HTTP Status Error: {e}")
+        raise HTTPException(status_code=e.response.status_code, detail=f"Failed to get processor: {e}")
+    except httpx.RequestError as e:
+        print(f"Request Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Request to NiFi failed: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+
+# API endpoint to get processor ID by name
+@router.post("/check-processor-exists/{process_group_id}/{name}", tags=["DATA_CHANNEL"])
+async def check_processor_exists(request: ProcessorGroupRequest):
+    processor_id = await check_processor_by_name(request)
+    if processor_id:
+        return {"processor_id": processor_id}
+    else:
+        raise HTTPException(status_code=404, detail="Processor not found")

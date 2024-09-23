@@ -14,8 +14,8 @@ from SEGMENTATION.main import router as router_segmentation
 
 def get_application() -> FastAPI:
     application = FastAPI(
-        title='FastAPI with Trino',
-        description='Integrate FastAPI with Minio',
+        title='FastAPI with EDP',
+        description='Integrate FastAPI with EDP',
         openapi_url="/openapi.json",
         docs_url="/docs"
     )
