@@ -6,6 +6,7 @@ import string, re, uuid, json
 from common.utils import APIUtils
 from common.utils.CommonUtils import CommonUtils
 from common.utils.VaultUtils import VaultUtils
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -35,12 +36,15 @@ def generate_valid_json_expression(json_data):
 
     return build_expression(0)
 
+class NiFiPutMinioRequest(BaseModel):
+    groupName: str
+    pathTail: str
+    jsonContent: dict
+
 @router.post("/create-api-nifi-put-minio/{id}", tags=["DATA_CHANNEL_API"])
 async def create_api_nifi_put_minio(
     id: str,
-    groupName: str = Form(...),
-    pathTail: str = Form(...),
-    jsonContent: str = Form(...)  # Pass JSON content as a string
+    request: NiFiPutMinioRequest  # Use the BaseModel for the request body
 ):
     try:
         print('Inside upload_job function')
@@ -52,7 +56,7 @@ async def create_api_nifi_put_minio(
         # Generate a random UUID for clientId
         clientId = str(uuid.uuid4())
 
-        json_data = json.loads(jsonContent)
+        json_data = request.jsonContent
 
         # Validate that the JSON is only one-level deep
         if not validate_one_level_json(json_data):
@@ -68,7 +72,7 @@ async def create_api_nifi_put_minio(
 
         # Update processor 3 properties
         file_data['flowContents']['processors'][3]['properties'].update({
-            'Allowed Paths': f"/{pathTail}"
+            'Allowed Paths': f"/{request.pathTail}"
         })
 
         # Update processor 9 properties (example with MinIO access)
@@ -105,7 +109,7 @@ async def create_api_nifi_put_minio(
                 headers={"Authorization": f"Bearer {token}"},
                 files={"file": (FILENAME, file_data, "application/json")},
                 data={
-                    "groupName": groupName,
+                    "groupName": request.groupName,
                     "positionX": positionX,  # Use the randomly generated X position
                     "positionY": positionY,  # Use the randomly generated Y position
                     "clientId": clientId,  # Use the randomly generated UUID
@@ -113,7 +117,7 @@ async def create_api_nifi_put_minio(
                 }
             )
 
-        # Assuming upload_response is the response from the API
+        # Process the response and extract processor info
         processors = upload_response.json().get('component', {}).get('contents', {}).get('processors', [])
 
         processors_info = []

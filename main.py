@@ -5,6 +5,7 @@ from DATA_CHANNEL.group_processor_api import router as router_group_processor_ap
 from DATA_CHANNEL.pushing_data_minio import router as router_api_json_minio
 from DATA_CHANNEL.fullload_postgre import router as router_full_load_postgres
 from DATA_CHANNEL.cdc_postgre import router as router_cdc_postgres
+from DATA_CHANNEL.postgre import router as router_postgre
 from DATA_IMPORT.main import router as router_data_import
 from DATA_MODEL.main import router as router_data_model
 from DATAFLOW.main import router as router_data_flow
@@ -35,8 +36,9 @@ app = get_application()
 
 app.include_router(router_group_processor_api, prefix="/main", tags=["DATA_CHANNEL"])
 app.include_router(router_api_json_minio, prefix="/pushing-data-minio", tags=["DATA_CHANNEL_API"])
-app.include_router(router_full_load_postgres, prefix="/full-load-postgres", tags=["DATA_CHANNEL_FULL_LOAD_POSTGRES"])
-app.include_router(router_cdc_postgres, prefix="/cdc-postgres", tags=["DATA_CHANNEL_CDC_POSTGRES"])
+# app.include_router(router_full_load_postgres, prefix="/full-load-postgres", tags=["DATA_CHANNEL_DATABASE"])
+# app.include_router(router_cdc_postgres, prefix="/cdc-postgres", tags=["DATA_CHANNEL_DATABASE"])
+app.include_router(router_postgre, prefix="/main", tags=["DATA_CHANNEL_DATABASE"])
 app.include_router(router_data_import, prefix="/main", tags=["DATA_IMPORT"])
 app.include_router(router_data_model, prefix="/main", tags=["DATA_MODEL"])
 app.include_router(router_data_flow, prefix="/main", tags=["DATA_FLOW"])
