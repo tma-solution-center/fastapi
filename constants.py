@@ -3,7 +3,7 @@ TRINO_CONNECTION_STRING = "trino://admin@trino.trino.svc.cluster.local/iceberg"
 # TRINO_CONNECTION_STRING = "trino://admin@localhost:8088/iceberg"
 TEMP_CATALOG = 'iceberg'
 TEMP_SCHEMA = 'temp'
-DEFAULT_CATALOG = 'iceberg'
+DEFAULT_CATALOG = 'lakehouse'
 DEFAULT_SCHEMA = 'cdp'
 HIVE_CATALOG = 'hive'
 

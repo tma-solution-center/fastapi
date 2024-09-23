@@ -246,9 +246,9 @@ async def update_processor(
 
         # Check if the update request was successful
         if update_response.status_code == 200:
-            json = vault_utils.read_secret("minio/keys")
-            json['tokenToPushingDataMinio'] = new_value
-            vault_utils.create_or_update_secret_to_vault("minio/keys", json)
+            json = vault_utils.read_secret("minio/api_minio")
+            json['tokenForApi'] = new_value
+            vault_utils.create_or_update_secret_to_vault("minio/api_minio", json)
             return {"token": f"{random_string}"}
         else:
             raise HTTPException(
@@ -309,6 +309,11 @@ async def update_puts3object_processor(
 
         # Check if the update request was successful
         if update_response.status_code == 200:
+            json = vault_utils.read_secret("minio/api_minio")
+            json['accessKey'] = access_id
+            json['secretKey'] = secretkey
+            json['bucketName'] = bucket_name
+            vault_utils.create_or_update_secret_to_vault("minio/api_minio", json)
             return {"message": "succeed!"}
         else:
             raise HTTPException(
