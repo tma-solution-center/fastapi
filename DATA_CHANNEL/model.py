@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class ConnectionDetails(BaseModel):
-    Group_Name: str
+    Group_Name: Optional[str] = None
     Host: str
     Port: int
     Database_User: str

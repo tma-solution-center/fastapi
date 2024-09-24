@@ -3,6 +3,8 @@ import httpx, asyncio, random, uuid
 from pydantic import BaseModel
 import mysql.connector
 from mysql.connector import Error
+import psycopg2
+from psycopg2 import OperationalError
 
 from DATA_CHANNEL.model import ConnectionDetails
 from common.utils import APIUtils
@@ -19,7 +21,7 @@ class ProcessorGroupRequest(BaseModel):
     id: Optional[str] = None
 
 
-@router.post("/test_connection/")
+@router.post("/test_connection/mysql")
 def test_mysql_connection(details: ConnectionDetails):
     connection = None
     try:
@@ -38,7 +40,24 @@ def test_mysql_connection(details: ConnectionDetails):
         if connection and connection.is_connected():
             connection.close()
 
-
+@router.post("/test_connection/postgresql")
+def test_postgresql_connection(details: ConnectionDetails):
+    connection = None
+    try:
+        connection = psycopg2.connect(
+            host=details.Host,
+            port=details.Port,
+            dbname=details.Database_Name,
+            user=details.Database_User,
+            password=details.Password
+        )
+        if connection:
+            return {"status": 200, "result": True}
+    except OperationalError as e:
+        raise HTTPException(status_code=500, detail=f"Connection failed: {e}")
+    finally:
+        if connection:
+            connection.close()
 
 # Asynchronous function to create a processor group in NiFi
 async def create_processor_group(request: ProcessorGroupRequest):
