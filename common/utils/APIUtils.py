@@ -9,6 +9,7 @@ ACCESS_KEY = minio_data['accessKey']
 SECRET_KEY = minio_data['secretKey']
 BUCKET_NAME_POSTGRES = minio_data['bucketNamePostgres']
 BUCKET_NAME_API_MINIO = minio_data['bucketNameApiMinio']
+BUCKET_NAME_MYSQl = minio_data['bucketNameMysql']
 
 # nifi constants
 nifi_data = vault_utils.read_secret('nifi/keys')
