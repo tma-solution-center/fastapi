@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import mysql.connector
 from mysql.connector import Error
 import psycopg2
-from psycopg2 import OperationalError
+from psycopg2 import OperationalError, sql
 
 from DATA_CHANNEL.model import ConnectionDetails
 from common.utils import APIUtils
@@ -21,10 +21,30 @@ class ProcessorGroupRequest(BaseModel):
     id: Optional[str] = None
 
 
+# @router.post("/test_connection/mysql")
+# def test_mysql_connection(details: ConnectionDetails):
+#     connection = None
+#     try:
+#         connection = mysql.connector.connect(
+#             host=details.Host,
+#             port=details.Port,
+#             database=details.Database_Name,
+#             user=details.Database_User,
+#             password=details.Password
+#         )
+#         if connection.is_connected():
+#             return {"status": 200, "result": True}
+#     except Error as e:
+#         raise HTTPException(status_code=500, detail=f"Connection failed: {e}")
+#     finally:
+#         if connection and connection.is_connected():
+#             connection.close()
+
 @router.post("/test_connection/mysql")
 def test_mysql_connection(details: ConnectionDetails):
     connection = None
     try:
+        # Establish connection to the MySQL database
         connection = mysql.connector.connect(
             host=details.Host,
             port=details.Port,
@@ -32,18 +52,40 @@ def test_mysql_connection(details: ConnectionDetails):
             user=details.Database_User,
             password=details.Password
         )
+
+        # If connection is successful, check if the table exists
         if connection.is_connected():
-            return {"status": 200, "result": True}
-    except Error as e:
-        raise HTTPException(status_code=500, detail=f"Connection failed: {e}")
+            cursor = connection.cursor()
+
+            # Check if a table was provided for validation
+            if details.Table_Name:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_name = %s",
+                    (details.Database_Name, details.Table_Name)
+                )
+                table_exists = cursor.fetchone()[0]
+
+                # Only return True if table exists
+                if table_exists:
+                    return {"status": 200, "result": True}
+                else:
+                    return {"status": 404, "result": False,
+                            "message": f"Table '{details.Table_Name}' not found in database '{details.Database_Name}'."}
+
+    except mysql.connector.Error as e:
+        return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
     finally:
         if connection and connection.is_connected():
             connection.close()
+
+    # In case connection is never established or fails silently
+    return {"status": 500, "result": False, "message": "Connection failed."}
 
 @router.post("/test_connection/postgresql")
 def test_postgresql_connection(details: ConnectionDetails):
     connection = None
     try:
+        # Establish connection to the PostgreSQL database
         connection = psycopg2.connect(
             host=details.Host,
             port=details.Port,
@@ -51,13 +93,36 @@ def test_postgresql_connection(details: ConnectionDetails):
             user=details.Database_User,
             password=details.Password
         )
+
+        # If connection is successful, check if the table exists
         if connection:
-            return {"status": 200, "result": True}
+            cursor = connection.cursor()
+
+            # Check if a table was provided for validation
+            if details.Table_Name:
+                cursor.execute(
+                    sql.SQL(
+                        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s)"
+                    ),
+                    [details.Table_Name]
+                )
+                table_exists = cursor.fetchone()[0]
+
+                # Only return True if table exists
+                if table_exists:
+                    return {"status": 200, "result": True}
+                else:
+                    return {"status": 404, "result": False,
+                            "message": f"Table '{details.Table_Name}' not found in database '{details.Database_Name}'."}
+
     except OperationalError as e:
-        raise HTTPException(status_code=500, detail=f"Connection failed: {e}")
+        return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
     finally:
         if connection:
             connection.close()
+
+    # In case connection is never established or fails silently
+    return {"status": 500, "result": False, "message": "Connection failed."}
 
 # Asynchronous function to create a processor group in NiFi
 async def create_processor_group(request: ProcessorGroupRequest):
@@ -103,12 +168,12 @@ async def create_processor_group(request: ProcessorGroupRequest):
         # Check if the response status is 'Created'
         if response.status_code == 201:
             return {
-                "Client id": (response.json())['revision']['clientId'],  # Return the client ID
-                "Version processor group": (response.json())['revision']['version'],  # Return the version
-                "Id new processor_group": (response.json())['id'],  # Return the ID of the processor group
-                "Position X": positionX,  # Return the randomly generated X position
-                "PositionY": positionY, # Return the randomly generated Y position
-                "Group name": request.Group_Name,
+                "Client_id": (response.json())['revision']['clientId'],  # Return the client ID
+                "Version_processor_group": (response.json())['revision']['version'],  # Return the version
+                "Id_new_processor_group": (response.json())['id'],  # Return the ID of the processor group
+                "Position_X": positionX,  # Return the randomly generated X position
+                "Position_Y": positionY, # Return the randomly generated Y position
+                "Group_name": request.Group_Name,
                 "Username": request.Username
             }
         else:
