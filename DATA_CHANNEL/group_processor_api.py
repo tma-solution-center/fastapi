@@ -123,13 +123,13 @@ async def create_processor_group_endpoint(request: ProcessorGroupRequest):
     return result
 
 @router.post("/start-job/{id}", tags=["DATA_CHANNEL"])
-async def start_job(request: ProcessorGroupRequest):
+async def start_job(id: str):
     token = await CommonUtils.get_nifi_token()
     # Construct the URL for the NiFi API endpoint to start the process group
-    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{request.id}"
+    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{id}"
 
     # Payload to set the state of the process group to 'RUNNING'
-    payload = {"id": request.id, "state": "RUNNING"}
+    payload = {"id": id, "state": "RUNNING"}
 
     # Make an asynchronous PUT request to NiFi to start the process group
     async with httpx.AsyncClient(verify=False) as client:
@@ -147,13 +147,13 @@ async def start_job(request: ProcessorGroupRequest):
     }
 
 @router.post("/stop-job/{id}", tags=["DATA_CHANNEL"])
-async def stop_job(request: ProcessorGroupRequest):
+async def stop_job(id: str):
     token = await CommonUtils.get_nifi_token()
     # Construct the URL for the NiFi API endpoint to stop the process group
-    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{request.id}"
+    status_url = f"{APIUtils.NIFI_URL}/flow/process-groups/{id}"
 
     # Payload to set the state of the process group to 'STOPPED'
-    payload = {"id": request.id, "state": "STOPPED"}
+    payload = {"id": id, "state": "STOPPED"}
 
     # Make an asynchronous PUT request to NiFi to stop the process group
     async with httpx.AsyncClient(verify=False) as client:
@@ -172,20 +172,20 @@ async def stop_job(request: ProcessorGroupRequest):
 
 
 @router.put("/enable-dbcp-connection-pool/{id}", tags=["DATA_CHANNEL"])
-async def enable_dbcp_connection_pool(request: ProcessorGroupRequest):
+async def enable_dbcp_connection_pool(id: str):
     # Get the token
     token = await CommonUtils.get_nifi_token()
 
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}  # Add the token to the headers
         # Fetch the current state and revision of the DBCPConnectionPool
-        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{request.id}", headers=headers)
+        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{id}", headers=headers)
         if service_response.status_code != 200:
             return {"status_code": service_response.status_code, "error": service_response.text}
 
         # Enable the DBCPConnectionPool using the retrieved revision
         payload = {"revision": service_response.json()['revision'], "state": "ENABLED"}
-        enable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{request.id}/run-status", json=payload,
+        enable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{id}/run-status", json=payload,
                                            headers=headers)
 
         if enable_response.status_code == 200:
@@ -205,19 +205,19 @@ async def enable_dbcp_connection_pool(request: ProcessorGroupRequest):
 
 
 @router.put("/disable-dbcp-connection-pool/{id}", tags=["DATA_CHANNEL"])
-async def disable_dbcp_connection_pool(request: ProcessorGroupRequest):
+async def disable_dbcp_connection_pool(id: str):
     # Get the token
     token = await CommonUtils.get_nifi_token()
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}  # Add the token to the headers
         # Fetch the current state and revision of the DBCPConnectionPool
-        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{request.id}", headers=headers)
+        service_response = await client.get(f"{APIUtils.NIFI_URL}/controller-services/{id}", headers=headers)
         if service_response.status_code != 200:
             return {"status_code": service_response.status_code, "error": service_response.text}
 
         # Disable the DBCPConnectionPool using the retrieved revision
         payload = {"revision": service_response.json()['revision'], "state": "DISABLED"}
-        disable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{request.id}/run-status", json=payload,
+        disable_response = await client.put(f"{APIUtils.NIFI_URL}/controller-services/{id}/run-status", json=payload,
                                             headers=headers)
 
         if disable_response.status_code == 200:
@@ -237,11 +237,11 @@ async def disable_dbcp_connection_pool(request: ProcessorGroupRequest):
 
 
 @router.post("/process-groups/{id}/empty-all-connections-requests", tags=["DATA_CHANNEL"])
-async def create_empty_all_connections_request(request: ProcessorGroupRequest):
+async def create_empty_all_connections_request(id: str):
     token = await CommonUtils.get_nifi_token()
 
     # Construct the URL to create a request to empty all connections for the specified process group
-    url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}/empty-all-connections-requests"
+    url = f"{APIUtils.NIFI_URL}/process-groups/{id}/empty-all-connections-requests"
 
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}
@@ -255,7 +255,7 @@ async def create_empty_all_connections_request(request: ProcessorGroupRequest):
             drop_request_id = response_json['dropRequest']['id']
 
             # Construct the URL to check the status of the empty connections request
-            status_url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}/empty-all-connections-requests/{drop_request_id}"
+            status_url = f"{APIUtils.NIFI_URL}/process-groups/{id}/empty-all-connections-requests/{drop_request_id}"
 
             while True:
                 # Poll the status URL to check if the empty connections request has been completed
@@ -278,14 +278,14 @@ async def create_empty_all_connections_request(request: ProcessorGroupRequest):
 
 
 @router.delete("/delete-process-group/{id}", tags=["DATA_CHANNEL"])
-async def delete_process_group(request: ProcessorGroupRequest):
+async def delete_process_group(id: str):
     token = await CommonUtils.get_nifi_token()
 
     # Generate a random UUID for clientId
     clientId = str(uuid.uuid4())
 
     # Construct the request URL to get the process group details
-    get_url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}"
+    get_url = f"{APIUtils.NIFI_URL}/process-groups/{id}"
 
     async with httpx.AsyncClient(verify=False) as client:
         headers = {"Authorization": f"Bearer {token}"}
@@ -302,7 +302,7 @@ async def delete_process_group(request: ProcessorGroupRequest):
             )
 
         # Construct the DELETE request URL
-        delete_url = f"{APIUtils.NIFI_URL}/process-groups/{request.id}"
+        delete_url = f"{APIUtils.NIFI_URL}/process-groups/{id}"
 
         # Set up query parameters for DELETE request
         params = {
