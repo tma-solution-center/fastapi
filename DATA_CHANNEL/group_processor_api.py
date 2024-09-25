@@ -40,59 +40,50 @@ class ProcessorGroupRequest(BaseModel):
 #         if connection and connection.is_connected():
 #             connection.close()
 
-@router.post("/test_connection/postgresql")
-def test_postgresql_connection(details: ConnectionDetails):
+@router.post("/test_connection/mysql")
+def test_mysql_connection(details: ConnectionDetails):
     connection = None
     try:
-        # Establish connection to the PostgreSQL database
-        connection = psycopg2.connect(
+        # Establish connection to the MySQL database
+        connection = mysql.connector.connect(
             host=details.Host,
             port=details.Port,
-            dbname=details.Database_Name,
+            database=details.Database_Name,
             user=details.Database_User,
             password=details.Password
         )
 
-        # If connection is successful, check if the table exists
-        if connection:
+        # If connection is successful
+        if connection.is_connected():
             cursor = connection.cursor()
 
-            # Check if a table was provided for validation
-            if details.Table_Name:
+            # If Col_Name is provided, check if the column exists
+            if details.Col_Name:
                 cursor.execute(
-                    sql.SQL("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s"),
-                    [details.Table_Name]
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = %s AND table_name = %s AND column_name = %s",
+                    (details.Database_Name, details.Table_Name, details.Col_Name)
                 )
-                table_exists = cursor.fetchone()[0]
+                column_exists = cursor.fetchone()[0]
 
-                # If table exists, check if a column is provided and exists
-                if table_exists:
-                    if details.Col_Name:
-                        cursor.execute(
-                            sql.SQL(
-                                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s AND column_name = %s"
-                            ),
-                            [details.Table_Name, details.Col_Name]
-                        )
-                        column_exists = cursor.fetchone()[0]
+                # Return True if the column exists, otherwise False
+                return {"status": 200, "result": column_exists == 1,
+                        "message": f"Column '{details.Col_Name}' exists." if column_exists else f"Column '{details.Col_Name}' not found."}
 
-                        # Return true only if the column exists
-                        if column_exists:
-                            return {"status": 200, "result": True}
-                        else:
-                            return {"status": 404, "result": False,
-                                    "message": f"Column '{details.Col_Name}' not found in table '{details.Table_Name}'."}
-                    else:
-                        # If no column provided, return True since the table exists
-                        return {"status": 200, "result": True}
-                else:
-                    return {"status": 404, "result": False,
-                            "message": f"Table '{details.Table_Name}' not found in database '{details.Database_Name}'."}
+            # If Col_Name is not provided, check if the table exists
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_name = %s",
+                (details.Database_Name, details.Table_Name)
+            )
+            table_exists = cursor.fetchone()[0]
 
-    except psycopg2.OperationalError as e:
+            # Return True if the table exists, otherwise False
+            return {"status": 200, "result": table_exists == 1,
+                    "message": f"Table '{details.Table_Name}' exists." if table_exists else f"Table '{details.Table_Name}' not found."}
+
+    except mysql.connector.Error as e:
         return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
     finally:
-        if connection:
+        if connection and connection.is_connected():
             connection.close()
 
     # In case connection is never established or fails silently
@@ -111,28 +102,37 @@ def test_postgresql_connection(details: ConnectionDetails):
             password=details.Password
         )
 
-        # If connection is successful, check if the table exists
+        # If connection is successful
         if connection:
             cursor = connection.cursor()
 
-            # Check if a table was provided for validation
-            if details.Table_Name:
+            # If Col_Name is provided, check if the column exists
+            if details.Col_Name:
                 cursor.execute(
                     sql.SQL(
-                        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s)"
+                        "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s AND column_name = %s"
                     ),
-                    [details.Table_Name]
+                    [details.Table_Name, details.Col_Name]
                 )
-                table_exists = cursor.fetchone()[0]
+                column_exists = cursor.fetchone()[0]
 
-                # Only return True if table exists
-                if table_exists:
-                    return {"status": 200, "result": True}
-                else:
-                    return {"status": 404, "result": False,
-                            "message": f"Table '{details.Table_Name}' not found in database '{details.Database_Name}'."}
+                # Return True if the column exists, otherwise False
+                return {"status": 200, "result": column_exists == 1,
+                        "message": f"Column '{details.Col_Name}' exists." if column_exists else f"Column '{details.Col_Name}' not found."}
 
-    except OperationalError as e:
+            # If Col_Name is not provided, check if the table exists
+            cursor.execute(
+                sql.SQL(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s"),
+                [details.Table_Name]
+            )
+            table_exists = cursor.fetchone()[0]
+
+            # Return True if the table exists, otherwise False
+            return {"status": 200, "result": table_exists == 1,
+                    "message": f"Table '{details.Table_Name}' exists." if table_exists else f"Table '{details.Table_Name}' not found."}
+
+    except psycopg2.OperationalError as e:
         return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
     finally:
         if connection:
