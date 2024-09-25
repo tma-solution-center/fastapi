@@ -40,42 +40,59 @@ class ProcessorGroupRequest(BaseModel):
 #         if connection and connection.is_connected():
 #             connection.close()
 
-@router.post("/test_connection/mysql")
-def test_mysql_connection(details: ConnectionDetails):
+@router.post("/test_connection/postgresql")
+def test_postgresql_connection(details: ConnectionDetails):
     connection = None
     try:
-        # Establish connection to the MySQL database
-        connection = mysql.connector.connect(
+        # Establish connection to the PostgreSQL database
+        connection = psycopg2.connect(
             host=details.Host,
             port=details.Port,
-            database=details.Database_Name,
+            dbname=details.Database_Name,
             user=details.Database_User,
             password=details.Password
         )
 
         # If connection is successful, check if the table exists
-        if connection.is_connected():
+        if connection:
             cursor = connection.cursor()
 
             # Check if a table was provided for validation
             if details.Table_Name:
                 cursor.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_name = %s",
-                    (details.Database_Name, details.Table_Name)
+                    sql.SQL("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s"),
+                    [details.Table_Name]
                 )
                 table_exists = cursor.fetchone()[0]
 
-                # Only return True if table exists
+                # If table exists, check if a column is provided and exists
                 if table_exists:
-                    return {"status": 200, "result": True}
+                    if details.Col_Name:
+                        cursor.execute(
+                            sql.SQL(
+                                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s AND column_name = %s"
+                            ),
+                            [details.Table_Name, details.Col_Name]
+                        )
+                        column_exists = cursor.fetchone()[0]
+
+                        # Return true only if the column exists
+                        if column_exists:
+                            return {"status": 200, "result": True}
+                        else:
+                            return {"status": 404, "result": False,
+                                    "message": f"Column '{details.Col_Name}' not found in table '{details.Table_Name}'."}
+                    else:
+                        # If no column provided, return True since the table exists
+                        return {"status": 200, "result": True}
                 else:
                     return {"status": 404, "result": False,
                             "message": f"Table '{details.Table_Name}' not found in database '{details.Database_Name}'."}
 
-    except mysql.connector.Error as e:
+    except psycopg2.OperationalError as e:
         return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
     finally:
-        if connection and connection.is_connected():
+        if connection:
             connection.close()
 
     # In case connection is never established or fails silently
