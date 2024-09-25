@@ -8,8 +8,11 @@ from psycopg2 import OperationalError, sql
 
 from DATA_CHANNEL.model import ConnectionDetails
 from common.utils import APIUtils
+from common.utils.APIUtils import mysql_connection_string
 from common.utils.CommonUtils import CommonUtils
 from typing import Optional
+
+from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 
 # Initialize the FastAPI router
 router = APIRouter()
@@ -184,6 +187,14 @@ async def create_processor_group(request: ProcessorGroupRequest):
 
         # Check if the response status is 'Created'
         if response.status_code == 201:
+            insert_query = f"""
+                INSERT INTO {APIUtils.catalog}.parent_group (group_id, group_name, client_name)
+                VALUES ('{(response.json())['id']}', '{request.Group_Name}', '{request.Username}');
+            """
+            # execute query
+            sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+            sqlalchemy.execute_query(insert_query)
+
             return {
                 "Client_id": (response.json())['revision']['clientId'],  # Return the client ID
                 "Version_processor_group": (response.json())['revision']['version'],  # Return the version
@@ -221,6 +232,15 @@ async def start_job(id: str):
             headers=headers,
             json=payload
         )
+
+    # update_query = f"""
+    #     INSERT INTO {APIUtils.catalog}.data_channel (pipe_id, pipeline_name, source_name, status_pipeline, json_file
+    #     created_at, update_at, group_id)
+    #     VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'mysql', 'start', null, null, '{id}');
+    # """
+    # execute query
+    sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+    # sqlalchemy.execute_query(update_query)
 
     # Return the status code and the response JSON from NiFi
     return {

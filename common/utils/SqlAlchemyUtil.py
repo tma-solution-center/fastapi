@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine, CursorResult
 from sqlalchemy.sql.expression import select, text
 from typing import Literal
-from sqlalchemy.engine import Engine, Connection
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine import Connection
 import logging.config
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from common.config.setting_logger import LOGGING
 
@@ -36,12 +36,20 @@ class SqlAlchemyUtil:
                 raise e
 
     def execute_query(self, query: str):
-        self.connect()
+        """Execute a raw SQL query with manual transaction control."""
+        trans = None
+        if self.__connection is None:
+            self.connect()
         try:
+            trans = self.__connection.begin()  # Begin a transaction
             self.__connection.execute(text(query))
-        except Exception as e:
-            logger.error(str(e))
-            raise e
+            trans.commit()  # Commit the transaction
+            logging.info("Query executed successfully.")
+        except SQLAlchemyError as e:
+            trans.rollback()  # Roll back the transaction on error
+            logging.error(f"Error occurred: {e}")
+            raise e  # Re-raise the exception for further handling if needed
+
 
     def execute_multiple_queries(self, queries: list):
         self.connect()
