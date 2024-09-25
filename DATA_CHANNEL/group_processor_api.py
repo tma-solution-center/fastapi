@@ -5,8 +5,7 @@ import mysql.connector
 from mysql.connector import Error
 import psycopg2
 from psycopg2 import OperationalError, sql
-
-from DATA_CHANNEL.model import ConnectionDetails
+from DATA_CHANNEL.model import ConnectionDetails, DataChannel
 from common.utils import APIUtils
 from common.utils.APIUtils import mysql_connection_string
 from common.utils.CommonUtils import CommonUtils
@@ -475,3 +474,34 @@ async def check_processor_exists(request: ProcessorGroupRequest):
         return {"processor_id": processor_id}
     else:
         raise HTTPException(status_code=404, detail="Processor not found")
+
+
+@router.get("/data-channel/{id}", tags=["DATA_CHANNEL"])
+async def get_data_channel(id: str):
+    try:
+        insert_query = f"""
+                        SELECT * FROM {APIUtils.catalog}.data_channel WHERE `pipe_id` = '{id}'
+                    """
+        # execute query
+        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+
+        data_list = sqlalchemy.execute_query_to_get_data(insert_query)
+
+        if not data_list:
+            raise HTTPException(status_code=404, detail="Data not found.")
+
+        data = data_list[0]
+        data_channel = DataChannel(
+            pipe_id=data['pipe_id'],
+            pipeline_name=data['pipeline_name'],
+            source_name=data['source_name'],
+            status_pipeline=data.get('status_pipeline'),
+            json_file=data.get('json_file'),
+            created_at=data['created_at'].isoformat(),
+            update_at=data['update_at'].isoformat(),
+            group_id=data['group_id']
+        )
+        return data_channel
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
