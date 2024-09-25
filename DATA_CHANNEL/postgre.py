@@ -3,9 +3,12 @@ import httpx, asyncio, json, requests
 import random  # Import the random module
 import uuid  # Import the uuid module
 from pydantic import BaseModel
-from common.utils import APIUtils
+import mysql.connector
 from common.utils.CommonUtils import CommonUtils
 from typing import Optional
+from common.utils import APIUtils
+from common.utils.APIUtils import mysql_connection_string
+from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 
 # Initialize the FastAPI router
 router = APIRouter()
@@ -107,6 +110,15 @@ async def create_fullload_postgre(id: str, request: PostgreRequest):
             {"id_processor": proc.get('id'), "name_processor": proc.get('name')}
             for proc in processors
         ]
+
+        if upload_response.status_code == 201:
+            insert_query = f"""
+                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `created_at`, `group_id`)
+                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'Fullload Postgre', NOW(), '{id}');
+            """
+            # execute query
+            sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+            sqlalchemy.execute_query(insert_query)
 
         # Return relevant details
         return {
@@ -217,6 +229,15 @@ async def create_cdc_postgre(id: str, request: PostgreRequest):
                 f"id_processor_{i + 1}": processor_id,
                 f"name_processor_{i + 1}": processor_name
             })
+
+        if upload_response.status_code == 201:
+            insert_query = f"""
+                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `created_at`, `group_id`)
+                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'CDC Postgre', NOW(), '{id}');
+            """
+            # execute query
+            sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+            sqlalchemy.execute_query(insert_query)
 
         # Return the relevant details including clientId and positions
         return {
