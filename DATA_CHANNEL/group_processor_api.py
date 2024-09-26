@@ -534,25 +534,24 @@ async def get_data_channel(id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-@router.get("/check-client/{client_name}")
-def check_client_name(client_name: str):
+@router.get("/check-username/{username}")
+def check_client_name(username: str):
     try:
-        # Tạo câu truy vấn SELECT COUNT(*) để kiểm tra client_name
         select_query = f"""
-            SELECT COUNT(*) 
+            SELECT *  
             FROM {APIUtils.catalog}.parent_group 
-            WHERE client_name = '{client_name}'
+            WHERE client_name = '{username}'
+            LIMIT 1;
         """
 
         # execute query
         sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
         result = sqlalchemy.execute_query_to_get_data(select_query)
         logger.info(f"result: {result}")
-        # Kiểm tra kết quả và trả về
-        if result[0]['COUNT(*)'] >= 1:
-            return {"status": 200, "result": True}
+        # check data result
+        if result[0]['client_name'] == username:
+            return {"status": 200, "result": True, "Id_new_processor_group": result[0]['group_id']}
         else:
-            raise HTTPException(status_code=404, detail=f"Client name '{client_name}' not found")
+            raise HTTPException(status_code=404, detail=f"Client name '{username}' not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail="Server error: " + str(e))
