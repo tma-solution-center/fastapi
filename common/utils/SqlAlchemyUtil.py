@@ -78,10 +78,10 @@ class SqlAlchemyUtil:
         finally:
             self.__connection.close()
 
-    def execute_query_to_get_data(self, query: str):
+    def execute_query_to_get_data(self, query: str, params: dict = None):
         self.connect()
         try:
-            result: CursorResult = self.__connection.execute(text(query))
+            result: CursorResult = self.__connection.execute(text(query), params)
             rows = result.fetchall()
             columns = result.keys()
 
@@ -92,3 +92,4 @@ class SqlAlchemyUtil:
             raise e
         finally:
             self.__connection.close()
+

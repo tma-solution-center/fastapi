@@ -6,7 +6,7 @@ from mysql.connector import Error
 from sqlalchemy import text
 import psycopg2
 from psycopg2 import OperationalError, sql
-from DATA_CHANNEL.model import ConnectionDetails, DataChannel
+from DATA_CHANNEL.model import ConnectionDetails, DataChannel, RequestDataChannel
 from common.utils import APIUtils
 from common.utils.APIUtils import mysql_connection_string
 from common.utils.CommonUtils import CommonUtils
@@ -503,32 +503,31 @@ async def check_processor_exists(request: ProcessorGroupRequest):
         raise HTTPException(status_code=404, detail="Processor not found")
 
 
-@router.get("/data-channel/{id}", tags=["DATA_CHANNEL"])
-async def get_data_channel(id: str):
+@router.get("/data-channel", tags=["DATA_CHANNEL"])
+async def get_data_channel(request: RequestDataChannel):
     try:
-        insert_query = f"""
-                        SELECT * FROM {APIUtils.catalog}.data_channel WHERE `pipe_id` = '{id}'
-                    """
+        # position get data
+        offset = (request.page - 1) * request.size
+
+        query = f"""
+                    SELECT * 
+                    FROM {APIUtils.catalog}.your_table
+                    ORDER BY last_updated DESC
+                    LIMIT :size OFFSET :offset;
+                """
         # execute query
         sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
 
-        data_list = sqlalchemy.execute_query_to_get_data(insert_query)
+        data_list = sqlalchemy.execute_query_to_get_data(query, {'size': request.size, 'offset': offset})
 
         if not data_list:
             raise HTTPException(status_code=404, detail="Data not found.")
 
-        data = data_list[0]
-        data_channel = DataChannel(
-            pipe_id=data['pipe_id'],
-            pipeline_name=data['pipeline_name'],
-            source_name=data['source_name'],
-            status_pipeline=data.get('status_pipeline'),
-            json_file=data.get('json_file'),
-            created_at=data['created_at'].isoformat(),
-            update_at=data['update_at'].isoformat(),
-            group_id=data['group_id']
-        )
-        return data_channel
+        return {
+            "page": request.page,
+            "size": request.size,
+            "data": data_list
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -549,9 +548,12 @@ def check_client_name(username: str):
         result = sqlalchemy.execute_query_to_get_data(select_query)
         logger.info(f"result: {result}")
         # check data result
+        if len(result) == 0:
+            return {"status": 200, "result": False, "Id_new_processor_group": ''}
         if result[0]['client_name'] == username:
             return {"status": 200, "result": True, "Id_new_processor_group": result[0]['group_id']}
         else:
-            raise HTTPException(status_code=404, detail=f"Client name '{username}' not found")
+            raise HTTPException(status_code=404, detail=f"Username '{username}' not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail="Server error: " + str(e))
+
