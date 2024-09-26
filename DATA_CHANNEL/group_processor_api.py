@@ -1,9 +1,8 @@
+import json
 from fastapi import HTTPException, APIRouter
 import httpx, asyncio, random, uuid
 from pydantic import BaseModel
 import mysql.connector
-from mysql.connector import Error
-from sqlalchemy import text
 import psycopg2
 from psycopg2 import OperationalError, sql
 from DATA_CHANNEL.model import ConnectionDetails, DataChannel, RequestDataChannel
@@ -503,7 +502,7 @@ async def check_processor_exists(request: ProcessorGroupRequest):
         raise HTTPException(status_code=404, detail="Processor not found")
 
 
-@router.get("/data-channel", tags=["DATA_CHANNEL"])
+@router.post("/data-channel", tags=["DATA_CHANNEL"])
 async def get_data_channel(request: RequestDataChannel):
     try:
         # position get data
@@ -511,8 +510,8 @@ async def get_data_channel(request: RequestDataChannel):
 
         query = f"""
                     SELECT * 
-                    FROM {APIUtils.catalog}.your_table
-                    ORDER BY last_updated DESC
+                    FROM {APIUtils.catalog}.data_channel
+                    ORDER BY update_at DESC
                     LIMIT :size OFFSET :offset;
                 """
         # execute query
@@ -522,6 +521,12 @@ async def get_data_channel(request: RequestDataChannel):
 
         if not data_list:
             raise HTTPException(status_code=404, detail="Data not found.")
+        else:
+            for row in data_list:
+                json_data_str = row.get('controll_service')
+                if json_data_str:
+                    # convert JSON to list
+                    row['controll_service'] = json.loads(json_data_str)
 
         return {
             "page": request.page,
