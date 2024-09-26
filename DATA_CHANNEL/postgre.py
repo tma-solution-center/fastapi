@@ -113,8 +113,10 @@ async def create_fullload_postgre(id: str, request: PostgreRequest):
 
         if upload_response.status_code == 201:
             insert_query = f"""
-                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`, `created_at`, `group_id`)
-                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'Fullload Postgre', 'Connected', NOW(), '{id}');
+                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
+                 `created_at`, `group_id`, `controll_service`)
+                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'Fullload Postgre', 'Connected',
+                 NOW(), '{id}', '["{id_Database_Connection_Pooling_Service}"]');
             """
             # execute query
             sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
@@ -232,8 +234,10 @@ async def create_cdc_postgre(id: str, request: PostgreRequest):
 
         if upload_response.status_code == 201:
             insert_query = f"""
-                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`, `created_at`, `group_id`)
-                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'CDC Postgre', 'Connected', NOW(), '{id}');
+                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
+                 `created_at`, `group_id`, `controll_service`)
+                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'CDC Postgre', 'Connected', NOW(), 
+                '{id}', '["{id_Database_Connection_Pooling_Service}"]');
             """
             # execute query
             sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
