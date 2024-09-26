@@ -2,11 +2,13 @@ from fastapi import FastAPI, HTTPException, APIRouter
 import httpx, asyncio, json, requests
 import random  # Import the random module
 import uuid  # Import the uuid module
-from DATA_CHANNEL.model import ConnectionDetails
 from common.utils import APIUtils
+from common.utils.APIUtils import mysql_connection_string
 from common.utils.CommonUtils import CommonUtils
 from pydantic import BaseModel
 from typing import Optional
+
+from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 
 # Initialize the FastAPI router
 router = APIRouter()
@@ -112,6 +114,17 @@ async def create_fullload_mysql(id: str, request: MysqlRequest):
                 f"id_processor_{i+1}": processor_id,
                 f"name_processor_{i+1}": processor_name
             })
+
+        # save infor data_channel
+        insert_query = f"""
+            INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
+             `created_at`, `group_id`, `controll_service`)
+            VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'Fullload Mysql', 'Connected', NOW(),
+             '{id}', '["{id_Database_Connection_Pooling_Service}"]');
+        """
+        # execute query
+        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+        sqlalchemy.execute_query(insert_query)
 
         # Return the relevant details including clientId and positions
         return {
@@ -225,6 +238,16 @@ async def create_cdc_mysql(id: str, request: MysqlRequest):
                 f"id_processor_{i + 1}": processor_id,
                 f"name_processor_{i + 1}": processor_name
             })
+
+        insert_query = f"""
+            INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
+             `created_at`, `group_id`, `controll_service`)
+            VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'CDC Mysql', 'Connected', NOW(), '{id}',
+            '["{id_Database_Connection_Pooling_Service}"]');
+        """
+        # execute query
+        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+        sqlalchemy.execute_query(insert_query)
 
         # Return the relevant details including clientId and positions
         return {

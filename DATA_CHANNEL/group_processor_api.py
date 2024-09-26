@@ -3,6 +3,7 @@ import httpx, asyncio, random, uuid
 from pydantic import BaseModel
 import mysql.connector
 from mysql.connector import Error
+from sqlalchemy import text
 import psycopg2
 from psycopg2 import OperationalError, sql
 from DATA_CHANNEL.model import ConnectionDetails, DataChannel
@@ -10,8 +11,13 @@ from common.utils import APIUtils
 from common.utils.APIUtils import mysql_connection_string
 from common.utils.CommonUtils import CommonUtils
 from typing import Optional
+import logging.config
+from common.config.setting_logger import LOGGING
 
 from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
+
+logging.config.dictConfig(LOGGING)
+logger = logging.getLogger()
 
 # Initialize the FastAPI router
 router = APIRouter()
@@ -232,15 +238,16 @@ async def start_job(id: str):
             json=payload
         )
 
-    # update_query = f"""
-    #     INSERT INTO {APIUtils.catalog}.data_channel (pipe_id, pipeline_name, source_name, status_pipeline, json_file
-    #     created_at, update_at, group_id)
-    #     VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'mysql', 'start', null, null, '{id}');
-    # """
+    update_query = f"""
+        UPDATE {APIUtils.catalog}.data_channel
+        SET status_pipeline = 'Running', update_at = NOW()
+        WHERE pipe_id = '{id}';
+    """
     # execute query
     sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
-    # sqlalchemy.execute_query(update_query)
+    sqlalchemy.execute_query(update_query)
 
+    logger.info(f"update status_pipeline: {update_query}")
     # Return the status code and the response JSON from NiFi
     return {
         "status_code": status_response.status_code,  # HTTP status code from NiFi
@@ -264,6 +271,17 @@ async def stop_job(id: str):
             headers=headers,
             json=payload
         )
+
+    update_query = f"""
+        UPDATE {APIUtils.catalog}.data_channel
+        SET status_pipeline = 'Stopped', update_at = NOW()
+        WHERE pipe_id = '{id}';
+    """
+    # execute query
+    sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+    sqlalchemy.execute_query(update_query)
+
+    logger.info(f"update status_pipeline: {update_query}")
 
     # Return the status code and the response JSON from NiFi
     return {
@@ -417,6 +435,15 @@ async def delete_process_group(id: str):
 
         # Check if the DELETE request was successful
         if delete_response.status_code == 200:
+            delete_query = f"""
+               DELETE FROM {APIUtils.catalog}.data_channel
+                WHERE pipe_id = '{id}';
+            """
+            # execute query
+            sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+            sqlalchemy.execute_query(delete_query)
+
+            logger.info(f"delete pipeline: {delete_query}")
             return {"message": f"Process group {id} deleted successfully."}
         else:
             raise HTTPException(
@@ -505,3 +532,27 @@ async def get_data_channel(id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.get("/check-client/{client_name}")
+def check_client_name(client_name: str):
+    try:
+        # Tạo câu truy vấn SELECT COUNT(*) để kiểm tra client_name
+        select_query = f"""
+            SELECT COUNT(*) 
+            FROM {APIUtils.catalog}.parent_group 
+            WHERE client_name = '{client_name}'
+        """
+
+        # execute query
+        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+        result = sqlalchemy.execute_query_to_get_data(select_query)
+        logger.info(f"result: {result}")
+        # Kiểm tra kết quả và trả về
+        if result[0]['COUNT(*)'] >= 1:
+            return {"status": 200, "result": True}
+        else:
+            raise HTTPException(status_code=404, detail=f"Client name '{client_name}' not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Server error: " + str(e))
