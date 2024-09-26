@@ -15,6 +15,7 @@ class ConnectionDetails(BaseModel):
     Max_Rows_Per_Flow_File: Optional[int] = None
     Output_Batch_Size: Optional[int] = None
 
+
 class DataChannel(BaseModel):
     pipe_id: str
     pipeline_name: str
@@ -24,3 +25,16 @@ class DataChannel(BaseModel):
     created_at: str
     update_at: str
     group_id: str
+    control_service: dict
+
+
+class RequestDataChannel(BaseModel):
+    page: int
+    size: int
+    sortBy: Optional[str]
+    sortField: Optional[str]
+    filters: Optional[dict]
+
+
+class ResponseDataChannel(BaseModel):
+    data: dict
