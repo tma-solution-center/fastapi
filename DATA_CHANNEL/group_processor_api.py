@@ -505,19 +505,40 @@ async def check_processor_exists(request: ProcessorGroupRequest):
 @router.post("/data-channel", tags=["DATA_CHANNEL"])
 async def get_data_channel(request: RequestDataChannel):
     try:
+        if request.page < 1:
+            raise ValueError("Page number must be greater than 0")
+
         # position get data
         offset = (request.page - 1) * request.size
 
+        # Query get data with LEFT JOIN, offset begin 0
         query = f"""
-                    SELECT * 
-                    FROM {APIUtils.catalog}.data_channel
-                    ORDER BY update_at DESC
-                    LIMIT :size OFFSET :offset;
-                """
+             SELECT dc.pipe_id, dc.pipeline_name, dc.source_name, dc.status_pipeline, dc.created_at, dc.update_at,
+              dc.group_id, dc.controll_service, dc.group_id, pg.client_name
+             FROM {APIUtils.catalog}.data_channel dc
+             LEFT JOIN {APIUtils.catalog}.parent_group pg 
+             ON dc.group_id = pg.group_id
+             ORDER BY dc.update_at DESC
+             LIMIT :size OFFSET :offset
+         """
+
+        # total row query
+        count_query = f"""
+            SELECT COUNT(*) as total_row
+            FROM {APIUtils.catalog}.data_channel
+        """
+
+        params = {'size': request.size, 'offset': offset}
+
         # execute query
         sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
 
-        data_list = sqlalchemy.execute_query_to_get_data(query, {'size': request.size, 'offset': offset})
+        data_list = sqlalchemy.execute_query_to_get_data(query, params)
+
+        # execute count query
+        sqlalchemy1 = SqlAlchemyUtil(connection_string=mysql_connection_string)
+
+        total_rows = sqlalchemy1.execute_count_query(count_query)
 
         if not data_list:
             raise HTTPException(status_code=404, detail="Data not found.")
@@ -528,9 +549,14 @@ async def get_data_channel(request: RequestDataChannel):
                     # convert JSON to list
                     row['controll_service'] = json.loads(json_data_str)
 
+        # Tính toán total pages
+        total_pages = (total_rows + request.size - 1) // request.size
+
         return {
             "page": request.page,
             "size": request.size,
+            "total_element": total_rows,
+            "total_pages": total_pages,
             "data": data_list
         }
 

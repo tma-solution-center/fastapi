@@ -35,14 +35,14 @@ class SqlAlchemyUtil:
                 logger.error(str(e))
                 raise e
 
-    def execute_query(self, query: str):
+    def execute_query(self, query: str, params: dict = None):
         """Execute a raw SQL query with manual transaction control."""
         trans = None
         if self.__connection is None:
             self.connect()
         try:
             trans = self.__connection.begin()  # Begin a transaction
-            self.__connection.execute(text(query))
+            self.__connection.execute(text(query), params)
             trans.commit()  # Commit the transaction
             logging.info("Query executed successfully.")
         except SQLAlchemyError as e:
