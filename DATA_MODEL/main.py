@@ -21,7 +21,7 @@ router = APIRouter()
 minio_client = MinioUtil.get_instance_default()
 
 
-@router.post('/trino/schema/', tags=["DATA_MODEL"])
+@router.get('/trino/schema', tags=["DATA_MODEL"])
 def get_schema(user: dict = Depends(validate_bearer_token)):
     schema_obj = get_schema_info(user['sub'])
     if schema_obj is None:
@@ -30,7 +30,7 @@ def get_schema(user: dict = Depends(validate_bearer_token)):
     return CommonUtils.handle_response(schema_obj.model_dump(), status=200, message='success', status_code=200)
 
 
-@router.post('/trino/add-update-delete/', tags=["DATA_MODEL"])
+@router.post('/trino/add-update-delete', tags=["DATA_MODEL"])
 def add_update_delete(request: DataModelRequest[FieldDto], user: dict = Depends(validate_bearer_token)):
     try:
         username = user['sub']
@@ -282,7 +282,7 @@ def replace_edit_row(request: ReplaceAndEdit):
         return JSONResponse(status_code=400, content={"message": str(e)})
 
 
-@router.post("/trino/snapshot_retention/", tags=["DATA_MODEL"])
+@router.post("/trino/snapshot_retention", tags=["DATA_MODEL"])
 def snapshot_retention(request: DataModelRequest[FieldDto], user: dict = Depends(validate_bearer_token)):
     try:
         request.username = user['sub']
