@@ -1,5 +1,6 @@
 from common.utils.VaultUtils import VaultUtils
-from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
+import logging.config
+from common.config.setting_logger import LOGGING
 
 vault_utils = VaultUtils()
 minio_data = vault_utils.read_secret('minio/keys')
@@ -29,6 +30,10 @@ catalog = mysql_data['dbname']
 
 # connection to mysql for getting and saving data
 mysql_connection_string = f"mysql+pymysql://{user}:{password}@{host}:{port}/{catalog}"
+
+# define logger
+logging.config.dictConfig(LOGGING)
+LOGGER = logging.getLogger()
 
 
 

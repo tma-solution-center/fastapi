@@ -4,7 +4,9 @@ import httpx
 import random  # Import the random module
 import string, re, uuid, json
 from common.utils import APIUtils
+from common.utils.APIUtils import mysql_connection_string
 from common.utils.CommonUtils import CommonUtils
+from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 from common.utils.VaultUtils import VaultUtils
 from pydantic import BaseModel
 
@@ -15,6 +17,7 @@ FILENAME = "api-minio-1.json"  # Replace with the name of the file you want to u
 
 vault_utils = VaultUtils()
 
+
 # Helper function to check if a JSON object is one-level deep
 def validate_one_level_json(json_data):
     if not isinstance(json_data, dict):
@@ -23,6 +26,7 @@ def validate_one_level_json(json_data):
         if isinstance(value, (dict, list)):
             return False
     return True
+
 
 # Helper function to generate the ValidJson expression based on file JSON content
 def generate_valid_json_expression(json_data):
@@ -36,10 +40,11 @@ def generate_valid_json_expression(json_data):
 
     return build_expression(0)
 
+
 class NiFiPutMinioRequest(BaseModel):
-    groupName: str
-    pathTail: str
-    jsonContent: dict
+    api_name: str
+    api_path: str
+    json_input: dict
 
 @router.post("/create-api-nifi-put-minio/{id}", tags=["DATA_CHANNEL_API"])
 async def create_api_nifi_put_minio(
@@ -56,7 +61,7 @@ async def create_api_nifi_put_minio(
         # Generate a random UUID for clientId
         clientId = str(uuid.uuid4())
 
-        json_data = request.jsonContent
+        json_data = request.json_input
 
         # Validate that the JSON is only one-level deep
         if not validate_one_level_json(json_data):
@@ -72,7 +77,7 @@ async def create_api_nifi_put_minio(
 
         # Update processor 3 properties
         file_data['flowContents']['processors'][3]['properties'].update({
-            'Allowed Paths': f"/{request.pathTail}"
+            'Allowed Paths': f"/{request.api_path}"
         })
 
         # Update processor 9 properties (example with MinIO access)
@@ -109,7 +114,7 @@ async def create_api_nifi_put_minio(
                 headers={"Authorization": f"Bearer {token}"},
                 files={"file": (FILENAME, file_data, "application/json")},
                 data={
-                    "groupName": request.groupName,
+                    "groupName": request.api_name,
                     "positionX": positionX,  # Use the randomly generated X position
                     "positionY": positionY,  # Use the randomly generated Y position
                     "clientId": clientId,  # Use the randomly generated UUID
@@ -168,6 +173,27 @@ async def create_api_nifi_put_minio(
 
             # Add processor_info to the list
             processors_info.append(processor_info)
+
+        # save info to db
+        insert_query = """
+            INSERT INTO {APIUtils.catalog}.data_channel (pipe_id, pipeline_name, source_name, status_pipeline, created_at,
+            group_id, controll_service)
+            VALUES (:pipe_id, :pipeline_name, 'API Json', 'Connected', NOW(), :group_id, :control_service)
+        """
+
+        control_service = []
+        # control_service.extend([processors_info.get('http_context_map_processor_4'), "grape"])
+
+        parameters = {
+            "pipe_id": (upload_response.json())['id'],
+            "pipeline_name": request.api_name,
+            "group_id": id,
+            "control_service": control_service
+        }
+
+        # execute query
+        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+        sqlalchemy.execute_query(insert_query, parameters)
 
         # Return the result
         return {
