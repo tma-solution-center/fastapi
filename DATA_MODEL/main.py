@@ -1,13 +1,17 @@
 import io
 import json
+
+import jwt
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Path, Request, Depends, HTTPException
+from starlette import status
 from starlette.responses import JSONResponse
 from DATA_MODEL.helper import *
 from DATA_MODEL.model import SchemaInfo, DataModelRequest, SchemaDto, RequestPaging, DetailsTableDto, \
     PaginationResponse, \
     ResponseJson, IcebergTable, RenameColumn, DropAllRow, DropTable, RemoveColumns, Insert, ReplaceAndEdit, \
     UpdateValuesMultiCondition, UpdateNanValue, FieldDto, RestoreDto, DownloadDataDto
+from common.security.security import validate_bearer_token
 from common.utils.MinioUtil import MinioUtil
 
 logging.config.dictConfig(LOGGING)
@@ -18,8 +22,8 @@ minio_client = MinioUtil.get_instance_default()
 
 
 @router.post('/trino/schema/', tags=["DATA_MODEL"])
-def get_schema(user_info: UserInfo):
-    schema_obj = get_schema_info(user_info.username)
+def get_schema(user: dict = Depends(validate_bearer_token)):
+    schema_obj = get_schema_info(user['sub'])
     if schema_obj is None:
         return CommonUtils.handle_response(None, status=200, message='success', status_code=200)
 
@@ -27,9 +31,10 @@ def get_schema(user_info: UserInfo):
 
 
 @router.post('/trino/add-update-delete/', tags=["DATA_MODEL"])
-def add_update_delete(request: DataModelRequest[FieldDto]):
+def add_update_delete(request: DataModelRequest[FieldDto], user: dict = Depends(validate_bearer_token)):
     try:
-        schema_obj = get_schema_info(request.username)
+        username = user['sub']
+        schema_obj = get_schema_info(username)
         if schema_obj is None:
             schema_obj = SchemaInfo(id=None, schema=SchemaDto(), lastModified="")
 
@@ -44,7 +49,6 @@ def add_update_delete(request: DataModelRequest[FieldDto]):
         message, status_code = handle_add_update_delete(request)
 
         if status_code == OK:
-            username = request.username
             object_name = f'{username}/schema.JSON'
             json_str = json.dumps(schema_obj.model_dump())
             minio_client.put_object(MINIO_BUCKET_NAME, object_name, CommonUtils.convert_string_to_binary_io(json_str))
@@ -57,9 +61,10 @@ def add_update_delete(request: DataModelRequest[FieldDto]):
 
 
 @router.put('/trino/update-status/{table}', tags=["DATA_MODEL"])
-async def update_status_column(table: str = Path(...), request: UpdateColumnStatus = None):
+async def update_status_column(table: str = Path(...), request: UpdateColumnStatus = None,
+                               user: dict = Depends(validate_bearer_token)):
     try:
-        username = request.username
+        username = user['sub']
         schema_obj = get_schema_info(username)
         status_updated = process_update_status_column(table, request.fields, schema_obj)
         message = "Column status was updated successfully"
@@ -76,9 +81,9 @@ async def update_status_column(table: str = Path(...), request: UpdateColumnStat
 
 
 @router.put('/trino/update-status-table/{table}', tags=["DATA_MODEL"])
-async def update_status_table(table: str = Path(...), user_info: UserInfo = None):
+async def update_status_table(table: str = Path(...), user: dict = Depends(validate_bearer_token)):
     try:
-        username = user_info.username
+        username = user['sub']
         schema_obj = get_schema_info(username)
         status_updated = process_update_status_table(table, schema_obj)
         message = "Table status was updated successfully"
@@ -95,9 +100,9 @@ async def update_status_table(table: str = Path(...), user_info: UserInfo = None
 
 
 @router.post('/trino/header-table-to-filter/{table}', tags=["DATA_MODEL"])
-async def header_table_to_filter(table: str = Path(...), user_info: UserInfo = None):
+async def header_table_to_filter(table: str = Path(...), user: dict = Depends(validate_bearer_token)):
     try:
-        return CommonUtils.handle_response(get_header_table_to_filter(table, user_info.username), status=OK,
+        return CommonUtils.handle_response(get_header_table_to_filter(table, user['sub']), status=OK,
                                            message="Success",
                                            status_code=OK)
     except Exception as e:
@@ -107,8 +112,10 @@ async def header_table_to_filter(table: str = Path(...), user_info: UserInfo = N
 
 
 @router.post("/trino/view-total-item-and-page", response_model=ResponseJson[PaginationResponse])
-async def view_total_item_and_page_table(request_paging: RequestPaging[DetailsTableDto]):
+async def view_total_item_and_page_table(request_paging: RequestPaging[DetailsTableDto],
+                                         user: dict = Depends(validate_bearer_token)):
     try:
+        request_paging.username = user['sub']
         pagination_response = view_total_item_and_page(request_paging)
         response = CommonUtils.handle_response(data=pagination_response, status=OK, message="Success", status_code=OK)
         return response
@@ -119,8 +126,10 @@ async def view_total_item_and_page_table(request_paging: RequestPaging[DetailsTa
 
 
 @router.post("/trino/view-total-item-and-page-table-old-version", response_model=ResponseJson[PaginationResponse])
-async def view_total_item_and_page_old_version(request_paging: RequestPaging[DetailsTableDto]):
+async def view_total_item_and_page_old_version(request_paging: RequestPaging[DetailsTableDto],
+                                               user: dict = Depends(validate_bearer_token)):
     try:
+        request_paging.username = user['sub']
         pagination_response = view_total_item_and_page(request_paging)
         response = CommonUtils.handle_response(data=pagination_response, status=OK, message="Success", status_code=OK)
         return response
@@ -131,8 +140,9 @@ async def view_total_item_and_page_old_version(request_paging: RequestPaging[Det
 
 
 @router.post("/trino/get-data-from-table", response_model=ResponseJson[PaginationResponse])
-async def get_data(request_paging: RequestPaging[DetailsTableDto]):
+async def get_data(request_paging: RequestPaging[DetailsTableDto], user: dict = Depends(validate_bearer_token)):
     try:
+        request_paging.username = user['sub']
         pagination_response = get_all_data_table(request_paging)
         response = CommonUtils.handle_response(data=pagination_response, status=OK, message="Success", status_code=OK)
         return response
@@ -143,8 +153,10 @@ async def get_data(request_paging: RequestPaging[DetailsTableDto]):
 
 
 @router.post("/trino/get-data-from-table-old-version", response_model=ResponseJson[PaginationResponse])
-async def get_data_old_version(request_paging: RequestPaging[DetailsTableDto]):
+async def get_data_old_version(request_paging: RequestPaging[DetailsTableDto],
+                               user: dict = Depends(validate_bearer_token)):
     try:
+        request_paging.username = user['sub']
         pagination_response = get_all_data_table_old_version(request_paging)
         response = CommonUtils.handle_response(data=pagination_response, status=OK, message="Success", status_code=OK)
         return response
@@ -155,9 +167,9 @@ async def get_data_old_version(request_paging: RequestPaging[DetailsTableDto]):
 
 
 @router.post('/trino/get-version-from-table/{table}', tags=["DATA_MODEL"])
-async def get_version_from_table(table: str = Path(...), user_info: UserInfo = None):
+async def get_version_from_table(table: str = Path(...), user: dict = Depends(validate_bearer_token)):
     try:
-        return CommonUtils.handle_response(get_version(table, user_info), status=OK, message="Success",
+        return CommonUtils.handle_response(get_version(table, user['sub']), status=OK, message="Success",
                                            status_code=OK)
     except Exception as e:
         logger.error(e)
@@ -166,8 +178,9 @@ async def get_version_from_table(table: str = Path(...), user_info: UserInfo = N
 
 
 @router.post("/trino/restore-version")
-async def restore_version(request: RestoreDto):
+async def restore_version(request: RestoreDto, user: dict = Depends(validate_bearer_token)):
     try:
+        request.username = user['sub']
         restore(request)
         return CommonUtils.handle_response(None, status=OK, message="Success",
                                            status_code=OK)
@@ -270,8 +283,9 @@ def replace_edit_row(request: ReplaceAndEdit):
 
 
 @router.post("/trino/snapshot_retention/", tags=["DATA_MODEL"])
-def snapshot_retention(request: DataModelRequest[FieldDto]):
+def snapshot_retention(request: DataModelRequest[FieldDto], user: dict = Depends(validate_bearer_token)):
     try:
+        request.username = user['sub']
         process_snapshot_retention(request)
         return CommonUtils.handle_response(None, status=OK, message="Snapshot retention successfully",
                                            status_code=OK)
@@ -304,8 +318,9 @@ def update_nan(request: UpdateNanValue):
 
 
 @router.post("/trino/download-data", tags=["DATA_MODEL"])
-async def download_data(request: DownloadDataDto):
+async def download_data(request: DownloadDataDto, user: dict = Depends(validate_bearer_token)):
     try:
+        request.username = user['sub']
         byte_array_output_stream = process_download_data(request)
         byte_array_io = io.BytesIO(byte_array_output_stream.getvalue())
         headers = {
@@ -319,8 +334,8 @@ async def download_data(request: DownloadDataDto):
                                            status_code=INTERNAL_SERVER_ERROR)
 
 
-@router.post("/trino/download-data-for-page", tags=["DATA_MODEL"])
-async def download_data_for_page(request: List[Dict[str, str]]):
+@router.post("/trino/download-data-for-page", tags=["DATA_MODEL"], )
+async def download_data_for_page(request: List[Dict[str, str]], user: dict = Depends(validate_bearer_token)):
     try:
         byte_array_output_stream = process_download_data_for_page(request)
         byte_array_io = io.BytesIO(byte_array_output_stream.getvalue())
@@ -335,7 +350,8 @@ async def download_data_for_page(request: List[Dict[str, str]]):
 
 
 @router.post("/trino/check-connection-data-storage", tags=["DATA_MODEL"])
-async def check_connection_data_storage(request: DataStorageInfo):
+async def check_connection_data_storage(request: DataStorageInfo, user: dict = Depends(validate_bearer_token)):
+    request.username = user['sub']
     try:
         check_connection, check_bucket, message = check_connection_for_data_storage_info(request)
         if not check_connection:
@@ -349,7 +365,8 @@ async def check_connection_data_storage(request: DataStorageInfo):
 
 
 @router.post("/trino/add-update-data-storage", tags=["DATA_MODEL"])
-async def add_update_data_storage(request: DataStorageInfo):
+async def add_update_data_storage(request: DataStorageInfo, user: dict = Depends(validate_bearer_token)):
+    request.username = user['sub']
     try:
         status = add_update_data_storage_info(request)
         if not status:

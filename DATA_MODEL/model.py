@@ -444,7 +444,7 @@ class DateDto(BaseModel):
 
 
 class DownloadDataDto(BaseModel):
-    user: Optional[str] = None
+    username: Optional[str] = None
     bucket: Optional[str] = None
     key: Optional[str] = None
     table: Optional[str] = None
