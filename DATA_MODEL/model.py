@@ -203,14 +203,14 @@ class SchemaDto(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    @model_validator(mode='before')
-    def auto_cast_param(cls, values):
-        tables = []
-        if values.get("tables") is not None and isinstance(values.get("tables"), list):
-            for table in values.get("tables"):
-                tables.append(TableDto(**table))
-        values['tables'] = tables
-        return values
+    # @model_validator(mode='before')
+    # def auto_cast_param(cls, values):
+    #     tables = []
+    #     if values.get("tables") is not None and isinstance(values.get("tables"), list):
+    #         for table in values.get("tables"):
+    #             tables.append(TableDto(**table))
+    #     values['tables'] = tables
+    #     return values
 
 
 class SchemaInfo(BaseModel):
@@ -233,7 +233,7 @@ class SchemaInfo(BaseModel):
 class ResponseJson(BaseModel, Generic[T]):
     data: Optional[T]
     status: int
-    message: str
+    message: Optional[str]
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
@@ -312,7 +312,7 @@ class DataModelRequest(BaseModel, Generic[T]):
     where: Optional[list[WhereDto]] = None
     id: Optional[IdDto] = None
     conditions: Optional[list[ConditionDto]] = None
-    username: str
+    username: str = ""
     drop_column_name: Optional[str] = ""
     new_table_name: Optional[str] = ""
     old_column: Optional[str] = ""
@@ -374,7 +374,7 @@ class RequestPaging(BaseModel, Generic[T]):
     sortBy: Optional[str] = None
     page: int = 0
     size: int = 0
-    username: str
+    username: Optional[str] = None
 
     model_config = ConfigDict(populate_by_name=True)
 

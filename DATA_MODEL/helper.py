@@ -1,21 +1,24 @@
 import logging.config
 import math
-from http.client import BAD_REQUEST, OK, INTERNAL_SERVER_ERROR
+from http.client import OK
 from io import BytesIO
 from typing import Dict
 import pandas as pd
 from DATA_MODEL.DataModelEnum import DataModelEnum
 from DATA_MODEL.query_builder import *
+from common.crud_mysql.CRUDManager import CRUDManager
+from common.crud_mysql.models.DataModelInfo import DataModelInfo
 from common.utils.FileUtils import FileUtils
 from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 from DATA_MODEL.model import *
 from common.config.setting_logger import LOGGING
 from common.utils.MinioUtil import MinioUtil
 from common.utils.VaultUtils import VaultUtils
-from constants import TRINO_CONNECTION_STRING, MINIO_BUCKET_NAME, MINIO_SERVICE_NAME, MINIO_URL_STR, ACCESS_KEY_STR, \
-    SECRET_KEY_STR, BUCKET_NAME_STR
+from constants import TRINO_CONNECTION_STRING, MINIO_SERVICE_NAME, MINIO_URL_STR, ACCESS_KEY_STR, \
+    SECRET_KEY_STR, BUCKET_NAME_STR, SUCCEEDED
 from constants import DEFAULT_SCHEMA as SCHEMA
 from common.utils.CommonUtils import CommonUtils
+from datetime import datetime
 
 logging.config.dictConfig(LOGGING)
 logger = logging.getLogger()
@@ -26,20 +29,52 @@ SEARCH_OR_FILTER = "searchOrFilter"
 START_INDEX = "startIndex"
 vault_utils = VaultUtils()
 
-
 def get_schema_info(username):
-    object_name = f'{username}/schema.JSON'
-    minio_client = MinioUtil.get_instance_default()
-    if not minio_client.check_file_name_exists(MINIO_BUCKET_NAME, object_name):
+    crud_manager = CRUDManager()
+    records = crud_manager.get_records_by_filter(DataModelInfo, username=username)
+    crud_manager.close()
+
+    if not records or len(records) == 0:
         return None
-    schema_json = minio_client.get_object(MINIO_BUCKET_NAME, object_name)
-    schema_obj = SchemaInfo(**schema_json)
-    return schema_obj
+
+    list_table = []
+    for record in records:
+        column_dtos = [ColumnDto(name=column.get('name'), type=column.get('type'), status=column.get('status')) for
+                       column in record.column_info]
+        list_table.append(TableDto(table=record.table_name, columns=column_dtos, status=record.status))
+
+    latest_modified_date = max(record.modified_date for record in records)
+    latest_modified_date_str = datetime.strftime(latest_modified_date,
+                                                 '%Y-%m-%d %H:%M:%S') if latest_modified_date is not None else ''
+
+    return SchemaInfo(schema=SchemaDto(tables=list_table),
+                      lastModified=f"{latest_modified_date_str}")
+
+
+def handle_add_update_delete(request: DataModelRequest[FieldDto]):
+    schema_obj = get_schema_info(request.username)
+    if schema_obj is None:
+        schema_obj = SchemaInfo(id=None, schema=SchemaDto(), lastModified="")
+
+    schema_dto = schema_obj.schema
+    tables = schema_dto.tables
+
+    table = case_update_filed_data_model_table_dtos(request, tables)
+    message, status_code = add_update_delete_to_database(request)
+
+    if status_code == OK:
+        # ignore update data_model info if request.option in ['insert', 'replace_and_edit_row' , 'drop_all_row']
+        if request.option not in [DataModelEnum.INSERT_ROW.get_value(), DataModelEnum.REPLACE_AND_EDIT_ROW.get_value(),
+                                  DataModelEnum.DROP_ALL_ROW.get_value()]:
+            add_update_delete_data_model_info(table, request)
+
+    return message, status_code
 
 
 def case_update_filed_data_model_table_dtos(request: DataModelRequest[FieldDto], tables: list[TableDto]):
     try:
         table_name_format = CommonUtils.convert_title_case_to_underscored_string(request.table_name)
+        table = None
         if DataModelEnum.CREATE_TABLE.get_value() == request.option:
             column_dtos = []
             for item in request.values:
@@ -49,7 +84,7 @@ def case_update_filed_data_model_table_dtos(request: DataModelRequest[FieldDto],
 
             add_value_init(column_dtos)
             dto = TableDto(table=table_name_format, columns=column_dtos, status=True)
-            tables.append(dto)
+            table = dto
 
             for data in request.values:
                 data.name_column = CommonUtils.convert_title_case_to_underscored_string(data.name_column)
@@ -67,6 +102,7 @@ def case_update_filed_data_model_table_dtos(request: DataModelRequest[FieldDto],
                                     name=CommonUtils.convert_title_case_to_underscored_string(item.name_column),
                                     type=item.type, status=True))
                     table_dto.columns = column_dtos_for_add_columns
+                    table = table_dto
                     break
 
             for data in request.values:
@@ -83,6 +119,7 @@ def case_update_filed_data_model_table_dtos(request: DataModelRequest[FieldDto],
                                                       data.name != remove_column_name]
 
                     table_dto.columns = column_dtos_for_remove_columns
+                    table = table_dto
                     break
             request.drop_column_name = CommonUtils.convert_title_case_to_underscored_string(
                 request.drop_column_name)
@@ -91,13 +128,15 @@ def case_update_filed_data_model_table_dtos(request: DataModelRequest[FieldDto],
             for table_dto in tables:
                 if table_dto.table == table_name_format:
                     table_dto.table = CommonUtils.convert_title_case_to_underscored_string(request.new_table_name)
+                    table = table_dto
                     break
 
             request.table_name = table_name_format
             request.new_table_name = CommonUtils.convert_title_case_to_underscored_string(request.new_table_name)
 
         if DataModelEnum.DROP_TABLE.get_value() == request.option:
-            tables = [table_dto for table_dto in tables if table_dto.table != table_name_format]
+            # tables = [table_dto for table_dto in tables if table_dto.table != table_name_format]
+            table = next((table_dto for table_dto in tables if table_dto.table == table_name_format))
             request.table_name = table_name_format
 
         if DataModelEnum.RENAME_COLUMN.get_value() == request.option:
@@ -112,14 +151,15 @@ def case_update_filed_data_model_table_dtos(request: DataModelRequest[FieldDto],
                             request.new_column = CommonUtils.convert_title_case_to_underscored_string(
                                 request.new_column)
                             request.old_type = CommonUtils.convert_title_case_to_underscored_string(request.old_type)
+                    table = table_dto
                     break
-        return tables
+        return table
     except Exception as e:
         logger.error(f"Occur error when {request.option}: {e} ")
         raise e
 
 
-def handle_add_update_delete(request: DataModelRequest):
+def add_update_delete_to_database(request: DataModelRequest):
     query = ""
     message = ""
     # Create new table
@@ -210,10 +250,11 @@ def handle_add_update_delete(request: DataModelRequest):
     # execute query
     sql_alchemy_util = SqlAlchemyUtil(TRINO_CONNECTION_STRING)
     try:
-        if query == "" or (isinstance(query, list) and len(query) == 0):
-            message = "Query is empty"
-            status_code = BAD_REQUEST
-            return message, status_code
+        # if query == "" or (isinstance(query, list) and len(query) == 0):
+        #     message = "Query is empty"
+        #     status_code = BAD_REQUEST
+        #     logger.info(message)
+        #     return message, status_code
 
         if isinstance(query, list):
             sql_alchemy_util.execute_multiple_queries(query)
@@ -221,15 +262,14 @@ def handle_add_update_delete(request: DataModelRequest):
             sql_alchemy_util.execute_query(query)
 
         logger.info(message)
-        status_code = OK
-        return message, status_code
+        return SUCCEEDED, OK
     except Exception as e:
         logger.error(e)
-        status_code = INTERNAL_SERVER_ERROR
-        return str(e), status_code
+        raise e
 
 
-def process_update_status_column(table_name: str, fields: list[str], schema_obj: SchemaInfo) -> bool:
+def process_update_status_column(table_name: str, fields: list[str], username: str) -> bool:
+    schema_obj = get_schema_info(username)
     table_dto_optional = next((table_dto for table_dto in schema_obj.schema.tables if table_dto.table == table_name),
                               None)
     if table_dto_optional:
@@ -237,15 +277,36 @@ def process_update_status_column(table_name: str, fields: list[str], schema_obj:
             if column_dto.name in fields:
                 column_dto.status = not column_dto.status
 
-    return True
+        crud_manager = CRUDManager()
+        columns = [col.model_dump() for col in table_dto_optional.columns]
+        data_model_info = DataModelInfo(
+            table_name=table_dto_optional.table,
+            username=username,
+            type_table="iceberg",
+            column_info=columns,
+            status=table_dto_optional.status
+        )
+        crud_manager.add_update_delete_data_model_info_record(data_model_info, False)
+        return SUCCEEDED
 
 
-def process_update_status_table(table_name: str, schema_obj: SchemaInfo) -> bool:
+def process_update_status_table(table_name: str, username: str) -> bool:
+    schema_obj = get_schema_info(username)
     table_dto_optional = next((table_dto for table_dto in schema_obj.schema.tables if table_dto.table == table_name),
                               None)
     if table_dto_optional:
         table_dto_optional.status = not table_dto_optional.status
-    return True
+        crud_manager = CRUDManager()
+        columns = [col.model_dump() for col in table_dto_optional.columns]
+        data_model_info = DataModelInfo(
+            table_name=table_dto_optional.table,
+            username=username,
+            type_table="iceberg",
+            column_info=columns,
+            status=table_dto_optional.status
+        )
+        crud_manager.add_update_delete_data_model_info_record(data_model_info, False)
+        return SUCCEEDED
 
 
 def get_header_table_to_filter(table_name: str, username: str) -> list[str]:
@@ -403,8 +464,7 @@ def get_data_from_table(database: str, table: str, limit: int, offset: int, filt
         raise e
 
 
-def get_version(table: str, user_info: UserInfo):
-    username = user_info.username
+def get_version(table: str, username: str):
     database = SCHEMA
     table_version = f"\"{table}$history\""
     data = get_data_from_table(database, table_version, -1, 0, "")
@@ -428,7 +488,7 @@ def restore(request: RestoreDto):
     sql_alchemy_util = SqlAlchemyUtil(TRINO_CONNECTION_STRING)
     try:
         sql_alchemy_util.execute_query(restore_query)
-        return
+        return SUCCEEDED
     except Exception as e:
         logger.error((str(e)))
         raise e
@@ -600,4 +660,38 @@ def add_update_data_storage_info(request: DataStorageInfo):
         return False
     except Exception as e:
         logger.error(f"Add or Update data storage info successfully failed: {str(e)}")
+        raise e
+
+
+def add_update_delete_data_model_info(table_info: TableDto, request: DataModelRequest[FieldDto]):
+    crud_manager = CRUDManager()
+    is_delete = request.option == DataModelEnum.DROP_TABLE.get_value()
+
+    columns = [col.model_dump() for col in table_info.columns]
+    data_model_info = DataModelInfo(
+        table_name=table_info.table,
+        username=request.username,
+        type_table="iceberg",
+        column_info=columns,
+        status=table_info.status
+    )
+    crud_manager.add_update_delete_data_model_info_record(data_model_info, is_delete)
+
+
+def get_list_columns_info_by_table(table_name: str):
+    query = f"""
+    SELECT column_name, data_type 
+    FROM {CATALOG}.information_schema.columns
+    WHERE table_schema = '{SCHEMA}'
+    AND table_name = '{table_name}'
+    """
+
+    # execute query
+    sql_alchemy_util = SqlAlchemyUtil(TRINO_CONNECTION_STRING)
+    try:
+        data = sql_alchemy_util.execute_query_to_get_data(query)
+        return data
+
+    except Exception as e:
+        logger.error(str(e))
         raise e

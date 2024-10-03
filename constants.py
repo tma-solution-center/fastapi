@@ -1,6 +1,7 @@
 # Config connection constant
 TRINO_CONNECTION_STRING = "trino://admin@trino.trino.svc.cluster.local/iceberg"
 # TRINO_CONNECTION_STRING = "trino://admin@localhost:8088/iceberg"
+# TRINO_CONNECTION_STRING = "trino://admin@192.168.76.120:30296"
 TEMP_CATALOG = 'iceberg'
 TEMP_SCHEMA = 'temp'
 DEFAULT_CATALOG = 'lakehouse'
@@ -34,3 +35,6 @@ BUCKET_NAME_STR = 'bucket_name'
 MINIO_SERVICE_NAME = 'minio'
 
 HTTP_URL = 'http://192.168.76.120:30237'
+MAX_RETRIES = 3
+RETRY_DELAY = 5
+SUCCEEDED = 'succeeded'

@@ -1,13 +1,11 @@
 import io
-import json
+from http.client import INTERNAL_SERVER_ERROR, BAD_REQUEST
 
-import jwt
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Path, Request, Depends, HTTPException
-from starlette import status
+from fastapi import APIRouter, Path, Depends
 from starlette.responses import JSONResponse
 from DATA_MODEL.helper import *
-from DATA_MODEL.model import SchemaInfo, DataModelRequest, SchemaDto, RequestPaging, DetailsTableDto, \
+from DATA_MODEL.model import DataModelRequest, RequestPaging, DetailsTableDto, \
     PaginationResponse, \
     ResponseJson, IcebergTable, RenameColumn, DropAllRow, DropTable, RemoveColumns, Insert, ReplaceAndEdit, \
     UpdateValuesMultiCondition, UpdateNanValue, FieldDto, RestoreDto, DownloadDataDto
@@ -33,27 +31,11 @@ def get_schema(user: dict = Depends(validate_bearer_token)):
 @router.post('/trino/add-update-delete', tags=["DATA_MODEL"])
 def add_update_delete(request: DataModelRequest[FieldDto], user: dict = Depends(validate_bearer_token)):
     try:
-        username = user['sub']
-        schema_obj = get_schema_info(username)
-        if schema_obj is None:
-            schema_obj = SchemaInfo(id=None, schema=SchemaDto(), lastModified="")
-
-        schema_dto = schema_obj.schema
-        tables = schema_dto.tables
-
-        schema_dto.tables = case_update_filed_data_model_table_dtos(request, tables)
-        schema_obj.schema = schema_dto
-        schema_obj.lastModified = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # add, update, delete for table or column
+        request.username = user['sub']
         message, status_code = handle_add_update_delete(request)
 
-        if status_code == OK:
-            object_name = f'{username}/schema.JSON'
-            json_str = json.dumps(schema_obj.model_dump())
-            minio_client.put_object(MINIO_BUCKET_NAME, object_name, CommonUtils.convert_string_to_binary_io(json_str))
-
-        return CommonUtils.handle_response(None, status=status_code, message=message, status_code=status_code)
+        return CommonUtils.handle_response({'status': message}, status=status_code, message=message,
+                                           status_code=status_code)
     except Exception as e:
         logger.error(e)
         return CommonUtils.handle_response(None, status=INTERNAL_SERVER_ERROR, message="Add/Update/Delete Failed",
@@ -61,18 +43,13 @@ def add_update_delete(request: DataModelRequest[FieldDto], user: dict = Depends(
 
 
 @router.put('/trino/update-status/{table}', tags=["DATA_MODEL"])
-async def update_status_column(table: str = Path(...), request: UpdateColumnStatus = None,
+async def update_status_column(table: str = Path(...), request: list[str] = None,
                                user: dict = Depends(validate_bearer_token)):
     try:
         username = user['sub']
-        schema_obj = get_schema_info(username)
-        status_updated = process_update_status_column(table, request.fields, schema_obj)
+
+        status_updated = process_update_status_column(table, request, username)
         message = "Column status was updated successfully"
-
-        object_name = f'{username}/schema.JSON'
-        json_str = json.dumps(schema_obj.model_dump())
-        minio_client.put_object(MINIO_BUCKET_NAME, object_name, CommonUtils.convert_string_to_binary_io(json_str))
-
         return CommonUtils.handle_response(status_updated, status=OK, message=message, status_code=OK)
     except Exception as e:
         logger.error(e)
@@ -84,13 +61,8 @@ async def update_status_column(table: str = Path(...), request: UpdateColumnStat
 async def update_status_table(table: str = Path(...), user: dict = Depends(validate_bearer_token)):
     try:
         username = user['sub']
-        schema_obj = get_schema_info(username)
-        status_updated = process_update_status_table(table, schema_obj)
+        status_updated = process_update_status_table(table, username)
         message = "Table status was updated successfully"
-
-        object_name = f'{username}/schema.JSON'
-        json_str = json.dumps(schema_obj.model_dump())
-        minio_client.put_object(MINIO_BUCKET_NAME, object_name, CommonUtils.convert_string_to_binary_io(json_str))
 
         return CommonUtils.handle_response(status_updated, status=OK, message=message, status_code=OK)
     except Exception as e:
@@ -181,8 +153,8 @@ async def get_version_from_table(table: str = Path(...), user: dict = Depends(va
 async def restore_version(request: RestoreDto, user: dict = Depends(validate_bearer_token)):
     try:
         request.username = user['sub']
-        restore(request)
-        return CommonUtils.handle_response(None, status=OK, message="Success",
+        status_str = restore(request)
+        return CommonUtils.handle_response({'status': status_str}, status=OK, message="Success",
                                            status_code=OK)
     except Exception as e:
         logger.error(e)
@@ -282,7 +254,7 @@ def replace_edit_row(request: ReplaceAndEdit):
         return JSONResponse(status_code=400, content={"message": str(e)})
 
 
-@router.post("/trino/snapshot_retention", tags=["DATA_MODEL"])
+@router.post("/trino/snapshot-retention", tags=["DATA_MODEL"])
 def snapshot_retention(request: DataModelRequest[FieldDto], user: dict = Depends(validate_bearer_token)):
     try:
         request.username = user['sub']
