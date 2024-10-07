@@ -28,7 +28,7 @@ user = mysql_data['username']
 password = mysql_data['password']
 catalog = mysql_data['dbname']
 dbname_test_conn = mysql_data['dbname_test_conn']
-host_local = mysql_data['host_local']
+host_local = mysql_data['service_name']
 port_local = mysql_data['port_local']
 
 # connection to mysql for getting and saving data
