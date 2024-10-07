@@ -27,56 +27,6 @@ class ProcessorGroupRequest(BaseModel):
     Username: Optional[str] = None
     id: Optional[str] = None
 
-@router.post("/test_connection/mysql")
-def test_mysql_connection(details: ConnectionDetails):
-    connection = None
-    try:
-        # Establish connection to the MySQL database
-        connection = mysql.connector.connect(
-            host=details.Host,
-            port=details.Port,
-            database=details.Database_Name,
-            user=details.Database_User,
-            password=details.Password
-        )
-
-        # If connection is successful
-        if connection.is_connected():
-            cursor = connection.cursor()
-
-            # If Col_Name is provided, check if the column exists
-            if details.Col_Name:
-                cursor.execute(
-                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = %s AND table_name = %s AND column_name = %s",
-                    (details.Database_Name, details.Table_Name, details.Col_Name)
-                )
-                column_exists = cursor.fetchone()[0]
-
-                # Return True if the column exists, otherwise False
-                return {"status": 200, "result": column_exists == 1,
-                        "message": f"Column '{details.Col_Name}' exists." if column_exists else f"Column '{details.Col_Name}' not found."}
-
-            # If Col_Name is not provided, check if the table exists
-            cursor.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_name = %s",
-                (details.Database_Name, details.Table_Name)
-            )
-            table_exists = cursor.fetchone()[0]
-
-            # Return True if the table exists, otherwise False
-            return {"status": 200, "result": table_exists == 1,
-                    "message": f"Table '{details.Table_Name}' exists." if table_exists else f"Table '{details.Table_Name}' not found."}
-
-    except mysql.connector.Error as e:
-        return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
-    finally:
-        if connection and connection.is_connected():
-            connection.close()
-
-    # In case connection is never established or fails silently
-    return {"status": 500, "result": False, "message": "Connection failed."}
-
-# Function to fetch column information from MySQL
 def get_mysql_table_info(table_name: str, mysql_conn):
     with mysql_conn.cursor(pymysql.cursors.DictCursor) as cursor:
         query = """
@@ -90,6 +40,59 @@ def get_mysql_table_info(table_name: str, mysql_conn):
             # Convert the column_info from string to a Python list using json.loads
             return json.loads(result['column_info'])
         return None
+
+@router.post("/test_connection/mysql")
+def test_mysql_connection(details: ConnectionDetails):
+    try:
+        # Step 1: Connect to the MySQL database to fetch column information
+        mysql_conn = pymysql.connect(
+            host=APIUtils.host_local,
+            port=APIUtils.port_local,
+            user=APIUtils.user,
+            password=APIUtils.password,
+            db=APIUtils.dbname_test_conn
+        )
+
+        # Fetch the column info from MySQL for the 'external' type table
+        column_info = get_mysql_table_info(details.Destination_Table_Name, mysql_conn)
+        if not column_info:
+            return {"status": 400, "result": False, "message": "No external table found with the specified name."}
+
+        # Step 2: Connect to the target MySQL database (to be tested)
+        target_mysql_conn = pymysql.connect(
+            host=details.Host,
+            port=details.Port,
+            user=details.Database_User,
+            password=details.Password,
+            db=details.Database_Name
+        )
+
+        with target_mysql_conn.cursor() as cursor:
+            # Step 3: Retrieve the column names of the MySQL table being tested
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = %s AND table_name = %s",
+                (details.Database_Name, details.Table_Name)
+            )
+            mysql_columns = [row[0] for row in cursor.fetchall()]
+
+            # Step 4: Compare MySQL columns with column_info from data_model_info
+            column_names_from_info = [col['name'] for col in column_info]
+            if mysql_columns == column_names_from_info:
+                return {"status": 200, "result": True, "message": "Table columns match the external table definition."}
+            else:
+                return {"status": 400, "result": False, "message": "Table columns do not match."}
+
+    except pymysql.MySQLError as e:
+        return {"status": 500, "result": False, "message": f"MySQL connection failed: {e}"}
+    except Exception as e:
+        return {"status": 500, "result": False, "message": f"An unexpected error occurred: {e}"}
+    finally:
+        if 'mysql_conn' in locals() and mysql_conn:
+            mysql_conn.close()
+        if 'target_mysql_conn' in locals() and target_mysql_conn:
+            target_mysql_conn.close()
+
+    return {"status": 500, "result": False, "message": "Connection failed."}
 
 
 @router.post("/test_connection/postgresql")
