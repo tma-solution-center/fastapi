@@ -95,7 +95,7 @@ def get_mysql_table_info(table_name: str, mysql_conn):
 @router.post("/test_connection/postgresql")
 def test_postgresql_connection(details: ConnectionDetails):
     try:
-        # Step 1: Connect to the MySQL database
+        # Connect to the MySQL database
         mysql_conn = pymysql.connect(
             host=APIUtils.host_local,
             port=APIUtils.port_local,
@@ -109,7 +109,7 @@ def test_postgresql_connection(details: ConnectionDetails):
         if not column_info:
             return {"status": 400, "result": False, "message": "No external table found with the specified name."}
 
-        # Step 2: Connect to the PostgreSQL database
+        # Connect to the PostgreSQL database
         with psycopg2.connect(
                 host=details.Host,
                 port=details.Port,
