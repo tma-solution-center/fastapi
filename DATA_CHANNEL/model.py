@@ -14,6 +14,7 @@ class ConnectionDetails(BaseModel):
     Col_Name: Optional[str] = None
     Max_Rows_Per_Flow_File: Optional[int] = None
     Output_Batch_Size: Optional[int] = None
+    Destination_Table_Name: Optional[str] = None
 
 
 class DataChannel(BaseModel):

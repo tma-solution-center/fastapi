@@ -12,7 +12,7 @@ from common.utils.CommonUtils import CommonUtils
 from typing import Optional
 import logging.config
 from common.config.setting_logger import LOGGING
-
+import pymysql
 from common.utils.SqlAlchemyUtil import SqlAlchemyUtil
 
 logging.config.dictConfig(LOGGING)
@@ -26,26 +26,6 @@ class ProcessorGroupRequest(BaseModel):
     Group_Name: Optional[str] = None
     Username: Optional[str] = None
     id: Optional[str] = None
-
-
-# @router.post("/test_connection/mysql")
-# def test_mysql_connection(details: ConnectionDetails):
-#     connection = None
-#     try:
-#         connection = mysql.connector.connect(
-#             host=details.Host,
-#             port=details.Port,
-#             database=details.Database_Name,
-#             user=details.Database_User,
-#             password=details.Password
-#         )
-#         if connection.is_connected():
-#             return {"status": 200, "result": True}
-#     except Error as e:
-#         raise HTTPException(status_code=500, detail=f"Connection failed: {e}")
-#     finally:
-#         if connection and connection.is_connected():
-#             connection.close()
 
 @router.post("/test_connection/mysql")
 def test_mysql_connection(details: ConnectionDetails):
@@ -96,54 +76,73 @@ def test_mysql_connection(details: ConnectionDetails):
     # In case connection is never established or fails silently
     return {"status": 500, "result": False, "message": "Connection failed."}
 
+# Function to fetch column information from MySQL
+def get_mysql_table_info(table_name: str, mysql_conn):
+    with mysql_conn.cursor(pymysql.cursors.DictCursor) as cursor:
+        query = """
+        SELECT column_info
+        FROM data_model_info
+        WHERE table_name = %s AND type_table = 'external'
+        """
+        cursor.execute(query, (table_name,))
+        result = cursor.fetchone()
+        if result:
+            # Convert the column_info from string to a Python list using json.loads
+            return json.loads(result['column_info'])
+        return None
+
+
 @router.post("/test_connection/postgresql")
 def test_postgresql_connection(details: ConnectionDetails):
-    connection = None
     try:
-        # Establish connection to the PostgreSQL database
-        connection = psycopg2.connect(
-            host=details.Host,
-            port=details.Port,
-            dbname=details.Database_Name,
-            user=details.Database_User,
-            password=details.Password
+        # Step 1: Connect to the MySQL database
+        mysql_conn = pymysql.connect(
+            host=APIUtils.host_local,
+            port=APIUtils.port_local,
+            user=APIUtils.user,
+            password=APIUtils.password,
+            db=APIUtils.dbname_test_conn
         )
 
-        # If connection is successful
-        if connection:
+        # Fetch the column info from MySQL for the 'external' type table
+        column_info = get_mysql_table_info(details.Destination_Table_Name, mysql_conn)
+        if not column_info:
+            return {"status": 400, "result": False, "message": "No external table found with the specified name."}
+
+        # Step 2: Connect to the PostgreSQL database
+        with psycopg2.connect(
+                host=details.Host,
+                port=details.Port,
+                dbname=details.Database_Name,
+                user=details.Database_User,
+                password=details.Password
+        ) as connection:
             cursor = connection.cursor()
 
-            # If Col_Name is provided, check if the column exists
-            if details.Col_Name:
-                cursor.execute(
-                    sql.SQL(
-                        "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s AND column_name = %s"
-                    ),
-                    [details.Table_Name, details.Col_Name]
-                )
-                column_exists = cursor.fetchone()[0]
-
-                # Return True if the column exists, otherwise False
-                return {"status": 200, "result": column_exists == 1,
-                        "message": f"Column '{details.Col_Name}' exists." if column_exists else f"Column '{details.Col_Name}' not found."}
-
-            # If Col_Name is not provided, check if the table exists
+            # Step 3: Retrieve the column names of the PostgreSQL table
             cursor.execute(
                 sql.SQL(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s"),
-                [details.Table_Name]
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s"
+                ), [details.Table_Name]
             )
-            table_exists = cursor.fetchone()[0]
+            pg_columns = [row[0] for row in cursor.fetchall()]
 
-            # Return True if the table exists, otherwise False
-            return {"status": 200, "result": table_exists == 1,
-                    "message": f"Table '{details.Table_Name}' exists." if table_exists else f"Table '{details.Table_Name}' not found."}
+            # Step 4: Compare PostgreSQL columns with MySQL column_info
+            mysql_columns = [col['name'] for col in column_info]
+            if pg_columns == mysql_columns:
+                return {"status": 200, "result": True, "message": "Table columns match the external table definition."}
+            else:
+                return {"status": 400, "result": False, "message": "Table columns do not match."}
 
     except psycopg2.OperationalError as e:
-        return {"status": 500, "result": False, "message": f"Connection failed: {e}"}
+        return {"status": 500, "result": False, "message": f"PostgreSQL connection failed: {e}"}
+    except pymysql.MySQLError as e:
+        return {"status": 500, "result": False, "message": f"MySQL connection failed: {e}"}
+    except Exception as e:
+        return {"status": 500, "result": False, "message": f"An unexpected error occurred: {e}"}
     finally:
-        if connection:
-            connection.close()
+        if 'mysql_conn' in locals() and mysql_conn:
+            mysql_conn.close()
 
     # In case connection is never established or fails silently
     return {"status": 500, "result": False, "message": "Connection failed."}
