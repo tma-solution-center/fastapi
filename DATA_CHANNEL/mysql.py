@@ -28,15 +28,23 @@ class MysqlRequest(BaseModel):
     Max_Rows_Per_Flow_File: int
     Output_Batch_Size: int
 
+sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+
 @router.post("/create-fullload-mysql/{id}", tags=["DATA_CHANNEL_DATABASE"])
 async def create_fullload_mysql(id: str, request: MysqlRequest):
+    # Generate a random UUID for clientId
+    clientId = str(uuid.uuid4())
+    insert_query = f"""
+        INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`,`created_at`, `group_id`)
+        VALUES ('{clientId}', '{request.Group_Name}', 'Fullload Mysql', NOW(),'{id}');
+    """
+    sqlalchemy.connect()
+    sqlalchemy.execute_query(insert_query)
+
     try:
         # Generate random positions for X and Y between 0 and 500
         positionX = random.uniform(0, 500)
         positionY = random.uniform(0, 500)
-
-        # Generate a random UUID for clientId
-        clientId = str(uuid.uuid4())
 
         # File handling: constructing the file name and path
         # file_name = f"{source_name}.json"
@@ -116,15 +124,26 @@ async def create_fullload_mysql(id: str, request: MysqlRequest):
             })
 
         # save infor data_channel
-        insert_query = f"""
-            INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
-             `created_at`, `group_id`, `controll_service`)
-            VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'Fullload Mysql', 'Connected', NOW(),
-             '{id}', '["{id_Database_Connection_Pooling_Service}"]');
-        """
-        # execute query
-        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
-        sqlalchemy.execute_query(insert_query)
+        if upload_response.status_code == 201:
+            update_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `pipe_id` = '{(upload_response.json())['id']}',
+                    `status_pipeline` = 'Connected',
+                    `controll_service` = '["{id_Database_Connection_Pooling_Service}"]'
+                WHERE `pipe_id` = '{clientId}';
+            """
+
+            # execute query
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(update_query)
+
+        else:
+            error_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `status_pipeline` = 'Error' WHERE `pipe_id` = '{clientId}';
+            """
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(error_query)
 
         # Return the relevant details including clientId and positions
         return {
@@ -150,13 +169,19 @@ async def create_fullload_mysql(id: str, request: MysqlRequest):
 
 @router.post("/create-cdc-mysql/{id}", tags=["DATA_CHANNEL_DATABASE"])
 async def create_cdc_mysql(id: str, request: MysqlRequest):
+    # Generate a random UUID for clientId
+    clientId = str(uuid.uuid4())
+    insert_query = f"""
+        INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`,`created_at`, `group_id`)
+        VALUES ('{clientId}', '{request.Group_Name}', 'CDC Mysql', NOW(),'{id}');
+    """
+    sqlalchemy.connect()
+    sqlalchemy.execute_query(insert_query)
+
     try:
         # Generate random positions for X and Y between 0 and 500
         positionX = random.uniform(0, 500)
         positionY = random.uniform(0, 500)
-
-        # Generate a random UUID for clientId
-        clientId = str(uuid.uuid4())
 
         # File handling: constructing the file name and path
         # file_name = f"{source_name}.json"
@@ -239,15 +264,26 @@ async def create_cdc_mysql(id: str, request: MysqlRequest):
                 f"name_processor_{i + 1}": processor_name
             })
 
-        insert_query = f"""
-            INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
-             `created_at`, `group_id`, `controll_service`)
-            VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'CDC Mysql', 'Connected', NOW(), '{id}',
-            '["{id_Database_Connection_Pooling_Service}"]');
-        """
-        # execute query
-        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
-        sqlalchemy.execute_query(insert_query)
+        if upload_response.status_code == 201:
+            update_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `pipe_id` = '{(upload_response.json())['id']}',
+                    `status_pipeline` = 'Connected',
+                    `controll_service` = '["{id_Database_Connection_Pooling_Service}"]'
+                WHERE `pipe_id` = '{clientId}';
+            """
+
+            # execute query
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(update_query)
+
+        else:
+            error_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `status_pipeline` = 'Error' WHERE `pipe_id` = '{clientId}';
+            """
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(error_query)
 
         # Return the relevant details including clientId and positions
         return {

@@ -28,15 +28,23 @@ class PostgreRequest(BaseModel):
     Max_Rows_Per_Flow_File: int
     Output_Batch_Size: int
 
+sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
+
 @router.post("/create-fullload-postgre/{id}", tags=["DATA_CHANNEL_DATABASE"])
 async def create_fullload_postgre(id: str, request: PostgreRequest):
+    # Generate a random UUID for clientId
+    clientId = str(uuid.uuid4())
+    insert_query = f"""
+        INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`,`created_at`, `group_id`)
+        VALUES ('{clientId}', '{request.Group_Name}', 'Fullload Postgre', NOW(),'{id}');
+    """
+    sqlalchemy.connect()
+    sqlalchemy.execute_query(insert_query)
+
     try:
         # Generate random positions for X and Y
         positionX = random.uniform(0, 500)
         positionY = random.uniform(0, 500)
-
-        # Generate a random UUID for clientId
-        clientId = str(uuid.uuid4())
 
         # File handling
         file_path = f"{LOCAL_FILE_DIRECTORY}/{FILENAME1}"
@@ -112,15 +120,25 @@ async def create_fullload_postgre(id: str, request: PostgreRequest):
         ]
 
         if upload_response.status_code == 201:
-            insert_query = f"""
-                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
-                 `created_at`, `group_id`, `controll_service`)
-                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'Fullload Postgre', 'Connected',
-                 NOW(), '{id}', '["{id_Database_Connection_Pooling_Service}"]');
+            update_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `pipe_id` = '{(upload_response.json())['id']}',
+                    `status_pipeline` = 'Connected',
+                    `controll_service` = '["{id_Database_Connection_Pooling_Service}"]'
+                WHERE `pipe_id` = '{clientId}';
             """
+
             # execute query
-            sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
-            sqlalchemy.execute_query(insert_query)
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(update_query)
+
+        else:
+            error_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `status_pipeline` = 'Error' WHERE `pipe_id` = '{clientId}';
+            """
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(error_query)
 
         # Return relevant details
         return {
@@ -144,13 +162,19 @@ async def create_fullload_postgre(id: str, request: PostgreRequest):
 
 @router.post("/create-cdc-postgre/{id}", tags=["DATA_CHANNEL_DATABASE"])
 async def create_cdc_postgre(id: str, request: PostgreRequest):
+    # Generate a random UUID for clientId
+    clientId = str(uuid.uuid4())
+    insert_query = f"""
+        INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`,`created_at`, `group_id`)
+        VALUES ('{clientId}', '{request.Group_Name}', 'CDC Postgre', NOW(),'{id}');
+    """
+    sqlalchemy.connect()
+    sqlalchemy.execute_query(insert_query)
+
     try:
         # Generate random positions for X and Y between 0 and 500
         positionX = random.uniform(0, 500)
         positionY = random.uniform(0, 500)
-
-        # Generate a random UUID for clientId
-        clientId = str(uuid.uuid4())
 
         # File handling: constructing the file name and path
         # file_name = f"{source_name}.json"
@@ -233,15 +257,25 @@ async def create_cdc_postgre(id: str, request: PostgreRequest):
             })
 
         if upload_response.status_code == 201:
-            insert_query = f"""
-                INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`, `status_pipeline`,
-                 `created_at`, `group_id`, `controll_service`)
-                VALUES ('{(upload_response.json())['id']}', '{request.Group_Name}', 'CDC Postgre', 'Connected', NOW(), 
-                '{id}', '["{id_Database_Connection_Pooling_Service}"]');
+            update_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `pipe_id` = '{(upload_response.json())['id']}',
+                    `status_pipeline` = 'Connected',
+                    `controll_service` = '["{id_Database_Connection_Pooling_Service}"]'
+                WHERE `pipe_id` = '{clientId}';
             """
+
             # execute query
-            sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
-            sqlalchemy.execute_query(insert_query)
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(update_query)
+
+        else:
+            error_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `status_pipeline` = 'Error' WHERE `pipe_id` = '{clientId}';
+            """
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(error_query)
 
         # Return the relevant details including clientId and positions
         return {
