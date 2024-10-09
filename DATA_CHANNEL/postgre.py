@@ -3,7 +3,6 @@ import httpx, asyncio, json, requests
 import random  # Import the random module
 import uuid  # Import the uuid module
 from pydantic import BaseModel
-import mysql.connector
 from common.utils.CommonUtils import CommonUtils
 from typing import Optional
 from common.utils import APIUtils
@@ -81,7 +80,8 @@ async def create_fullload_postgre(id: str, request: PostgreRequest):
             'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            # 'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.Destination_Table_Name}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Prepare the NiFi API upload URL
@@ -210,7 +210,8 @@ async def create_cdc_postgre(id: str, request: PostgreRequest):
             'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.Destination_Table_Name}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            # 'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Convert file_data back to JSON string before sending it in the request

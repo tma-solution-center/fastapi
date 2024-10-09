@@ -79,7 +79,8 @@ async def create_fullload_mysql(id: str, request: MysqlRequest):
             'Bucket': APIUtils.BUCKET_NAME_MYSQl,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.Destination_Table_Name}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            #'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Convert file_data back to JSON string before sending it in the request
@@ -218,7 +219,8 @@ async def create_cdc_mysql(id: str, request: MysqlRequest):
             'Bucket': APIUtils.BUCKET_NAME_MYSQl,
             'Access Key': APIUtils.ACCESS_KEY,
             'Secret Key': APIUtils.SECRET_KEY,
-            'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            'Object Key': f"{request.Destination_Table_Name}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
+            # 'Object Key': f"{request.Destination_Table_Name}/${{now():format('yyyy-MM-dd','Asia/Ho_Chi_Minh')}}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}.snappy.parquet"
         })
 
         # Convert file_data back to JSON string before sending it in the request

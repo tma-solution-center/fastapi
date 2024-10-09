@@ -17,6 +17,7 @@ FILENAME = "api-minio-1.json"  # Replace with the name of the file you want to u
 
 vault_utils = VaultUtils()
 
+sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
 
 # Helper function to check if a JSON object is one-level deep
 def validate_one_level_json(json_data):
@@ -45,21 +46,27 @@ class NiFiPutMinioRequest(BaseModel):
     api_name: str
     api_path: str
     json_input: dict
+    destination_table_name: str
 
 @router.post("/create-api-nifi-put-minio/{id}", tags=["DATA_CHANNEL_API"])
 async def create_api_nifi_put_minio(
     id: str,
     request: NiFiPutMinioRequest  # Use the BaseModel for the request body
 ):
+    clientId = str(uuid.uuid4())
+    insert_query = f"""
+            INSERT INTO {APIUtils.catalog}.data_channel (`pipe_id`, `pipeline_name`, `source_name`,`created_at`, `group_id`)
+            VALUES ('{clientId}', '{request.api_name}', 'API Json', NOW(),'{id}');
+        """
+    sqlalchemy.connect()
+    sqlalchemy.execute_query(insert_query)
+
     try:
         print('Inside upload_job function')
 
         # Generate random positions for X and Y between 0 and 500
         positionX = random.uniform(0, 500)
         positionY = random.uniform(0, 500)
-
-        # Generate a random UUID for clientId
-        clientId = str(uuid.uuid4())
 
         json_data = request.json_input
 
@@ -83,9 +90,10 @@ async def create_api_nifi_put_minio(
         # Update processor 9 properties (example with MinIO access)
         file_data['flowContents']['processors'][9]['properties'].update({
             'Endpoint Override URL': APIUtils.ENDPOINT_URL,
-            'Bucket': APIUtils.BUCKET_NAME_POSTGRES,
+            'Bucket': APIUtils.BUCKET_NAME_API_MINIO,
             'Access Key': APIUtils.ACCESS_KEY,
-            'Secret Key': APIUtils.SECRET_KEY
+            'Secret Key': APIUtils.SECRET_KEY,
+            'Object Key': f"{request.destination_table_name}/${{now():toDate('yyyy-MM-dd HH:mm:ss.SSS','UTC'):format('yyyy-MM-dd-HH-mm-ss-SSS','Asia/Ho_Chi_Minh')}}-${{filename}}.snappy.parquet"
         })
 
         # Update processor 2 properties based on uploaded JSON file content
@@ -174,26 +182,27 @@ async def create_api_nifi_put_minio(
             # Add processor_info to the list
             processors_info.append(processor_info)
 
-        # save info to db
-        insert_query = """
-            INSERT INTO {APIUtils.catalog}.data_channel (pipe_id, pipeline_name, source_name, status_pipeline, created_at,
-            group_id, controll_service)
-            VALUES (:pipe_id, :pipeline_name, 'API Json', 'Connected', NOW(), :group_id, :control_service)
-        """
-
         control_service = []
-        # control_service.extend([processors_info.get('http_context_map_processor_4'), "grape"])
+        if upload_response.status_code == 201:
+            update_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `pipe_id` = '{(upload_response.json())['id']}',
+                    `status_pipeline` = 'Connected',
+                    `controll_service` = '["{control_service}"]'
+                WHERE `pipe_id` = '{clientId}';
+            """
 
-        parameters = {
-            "pipe_id": (upload_response.json())['id'],
-            "pipeline_name": request.api_name,
-            "group_id": id,
-            "control_service": control_service
-        }
+            # execute query
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(update_query)
 
-        # execute query
-        sqlalchemy = SqlAlchemyUtil(connection_string=mysql_connection_string)
-        sqlalchemy.execute_query(insert_query, parameters)
+        else:
+            error_query = f"""
+                UPDATE {APIUtils.catalog}.data_channel
+                SET `status_pipeline` = 'Error' WHERE `pipe_id` = '{clientId}';
+            """
+            sqlalchemy.connect()
+            sqlalchemy.execute_query(error_query)
 
         # Return the result
         return {
