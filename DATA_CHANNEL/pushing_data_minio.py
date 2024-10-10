@@ -137,6 +137,9 @@ async def create_api_nifi_put_minio(
         auth_value = None
         allowed_paths = None
 
+        # Create a set to save different value id control service
+        control_services = set()
+
         # Function to extract and format the auth token value
         def format_auth_token(auth_value):
             match = re.search(r"Bearer\s*([\w\d]+)", auth_value)
@@ -174,21 +177,23 @@ async def create_api_nifi_put_minio(
             # Add attributes only if they exist
             if record_reader:
                 processor_info[f"record_reader_processor_{i+1}"] = record_reader
+                control_services.add(record_reader)
             if record_writer:
                 processor_info[f"record_writer_processor_{i+1}"] = record_writer
+                control_services.add(record_writer)
             if http_context_map:
                 processor_info[f"http_context_map_processor_{i+1}"] = http_context_map
+                control_services.add(http_context_map)
 
             # Add processor_info to the list
             processors_info.append(processor_info)
-
-        control_service = []
+        print("control_services", control_services)
         if upload_response.status_code == 201:
             update_query = f"""
                 UPDATE {APIUtils.catalog}.data_channel
                 SET `pipe_id` = '{(upload_response.json())['id']}',
                     `status_pipeline` = 'Connected',
-                    `controll_service` = '["{control_service}"]'
+                    `controll_service` = '{json.dumps(list(control_services))}'
                 WHERE `pipe_id` = '{clientId}';
             """
 
